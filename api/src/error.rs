@@ -41,6 +41,12 @@ pub enum GodlError {
 
     #[error("NFT does not belong to the required collection")]
     InvalidCollection = 12,
+
+    #[error("OTC treasury has insufficient GODL balance")]
+    InsufficientOtcGodlBalance = 13,
+
+    #[error("OTC quote has expired")]
+    OtcQuoteExpired = 14,
 }
 
 error!(GodlError);

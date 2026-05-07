@@ -5,6 +5,7 @@ mod stake;
 mod stake_v2;
 mod referral;
 mod admin;
+mod otc;
 
 use initialize::*;
 use automation::*;
@@ -13,6 +14,7 @@ use stake::*;
 use stake_v2::*;
 use referral::*;
 use admin::*;
+use otc::*;
 
 use godl_api::instruction::*;
 use steel::*;
@@ -86,6 +88,14 @@ pub fn process_instruction(
         GodlInstruction::InjectGodlMotherlode => {
             process_inject_godl_motherlode(accounts, data)?
         }
+
+        // OTC
+        GodlInstruction::InitializeOtcTreasury => {
+            process_initialize_otc_treasury(accounts, data)?
+        }
+        GodlInstruction::FundGodlOtc => process_fund_godl_otc(accounts, data)?,
+        GodlInstruction::ExecuteOtcTrade => process_execute_otc_trade(accounts, data)?,
+        GodlInstruction::WithdrawSolOtc => process_withdraw_sol_otc(accounts, data)?,
 
     }
 

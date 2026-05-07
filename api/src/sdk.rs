@@ -3,7 +3,7 @@ use spl_associated_token_account::get_associated_token_address;
 use steel::*;
 
 use crate::{
-    consts::{ADMIN_GODL_FEE, BOARD, CHEST_ADDRESS, MINT_ADDRESS, MPL_CORE_PROGRAM, NFT_BOOST_COLLECTION, SOL_MINT},
+    consts::{ADMIN_GODL_FEE, BOARD, CHEST_ADDRESS, MINT_ADDRESS, MPL_CORE_PROGRAM, NFT_BOOST_COLLECTION, OTC_ORACLE_SIGNER, SOL_MINT},
     instruction::*,
     state::*,
 };
@@ -1053,5 +1053,103 @@ pub fn initialize_sol_motherlode(signer: Pubkey) -> Instruction {
             AccountMeta::new_readonly(system_program::ID, false),
         ],
         data: InitializeSolMotherlode {}.to_bytes(),
+    }
+}
+
+pub fn initialize_otc_treasury(signer: Pubkey) -> Instruction {
+    let otc_treasury_address = otc_treasury_pda().0;
+    let otc_treasury_tokens = otc_treasury_tokens_address();
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(signer, true),
+            AccountMeta::new_readonly(MINT_ADDRESS, false),
+            AccountMeta::new(otc_treasury_address, false),
+            AccountMeta::new(otc_treasury_tokens, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(spl_associated_token_account::ID, false),
+        ],
+        data: InitializeOtcTreasury {}.to_bytes(),
+    }
+}
+
+pub fn fund_godl_otc(signer: Pubkey, amount: u64) -> Instruction {
+    let otc_treasury_address = otc_treasury_pda().0;
+    let otc_treasury_tokens = otc_treasury_tokens_address();
+    let signer_tokens = get_associated_token_address(&signer, &MINT_ADDRESS);
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(signer, true),
+            AccountMeta::new_readonly(MINT_ADDRESS, false),
+            AccountMeta::new(signer_tokens, false),
+            AccountMeta::new(otc_treasury_address, false),
+            AccountMeta::new(otc_treasury_tokens, false),
+            AccountMeta::new_readonly(spl_token::ID, false),
+        ],
+        data: FundGodlOtc {
+            amount: amount.to_le_bytes(),
+        }
+        .to_bytes(),
+    }
+}
+
+pub fn execute_otc_trade(
+    buyer: Pubkey,
+    stake_id: u64,
+    sol_in: u64,
+    godl_out: u64,
+    godl_bonus: u64,
+    expiry_slot: u64,
+) -> Instruction {
+    let miner_address = miner_pda(buyer).0;
+    let otc_user_address = otc_user_pda(buyer).0;
+    let otc_treasury_address = otc_treasury_pda().0;
+    let otc_treasury_tokens = otc_treasury_tokens_address();
+    let treasury_address = treasury_pda().0;
+    let treasury_tokens = treasury_tokens_address(treasury_address);
+    let stake_address = stake_v2_pda(buyer, stake_id).0;
+    let stake_tokens = get_associated_token_address(&stake_address, &MINT_ADDRESS);
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(buyer, true),
+            AccountMeta::new_readonly(OTC_ORACLE_SIGNER, true),
+            AccountMeta::new_readonly(MINT_ADDRESS, false),
+            AccountMeta::new(miner_address, false),
+            AccountMeta::new(otc_user_address, false),
+            AccountMeta::new(otc_treasury_address, false),
+            AccountMeta::new(otc_treasury_tokens, false),
+            AccountMeta::new(treasury_address, false),
+            AccountMeta::new(treasury_tokens, false),
+            AccountMeta::new(stake_address, false),
+            AccountMeta::new(stake_tokens, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(spl_associated_token_account::ID, false),
+        ],
+        data: ExecuteOtcTrade {
+            stake_id: stake_id.to_le_bytes(),
+            sol_in: sol_in.to_le_bytes(),
+            godl_out: godl_out.to_le_bytes(),
+            godl_bonus: godl_bonus.to_le_bytes(),
+            expiry_slot: expiry_slot.to_le_bytes(),
+        }
+        .to_bytes(),
+    }
+}
+
+pub fn withdraw_sol_otc(signer: Pubkey) -> Instruction {
+    let otc_treasury_address = otc_treasury_pda().0;
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(signer, true),
+            AccountMeta::new(otc_treasury_address, false),
+            AccountMeta::new(CHEST_ADDRESS, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+        data: WithdrawSolOtc {}.to_bytes(),
     }
 }

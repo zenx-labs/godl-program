@@ -3,7 +3,7 @@ use solana_program::log::sol_log;
 use spl_token::amount_to_ui_amount;
 use steel::*;
 
-fn stake_multiplier(lock_duration: i64) -> u64 {
+pub fn stake_multiplier(lock_duration: i64) -> u64 {
     let d = lock_duration.max(0).min(MAX_LOCK_DURATION) as u64;
 
     // Linear interpolation between 1x and MAX_STAKE_MULTIPLIER, in fixed point.

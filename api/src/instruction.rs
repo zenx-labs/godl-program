@@ -62,6 +62,12 @@ pub enum GodlInstruction {
     InjectGodlMotherlode = 44,
     StakeNft = 45,
     UnstakeNft = 46,
+
+    // OTC
+    InitializeOtcTreasury = 47,
+    FundGodlOtc = 48,
+    ExecuteOtcTrade = 49,
+    WithdrawSolOtc = 50,
 }
 
 #[repr(C)]
@@ -385,6 +391,30 @@ pub struct AutomateV4 {
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct ClaimSpl {}
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct InitializeOtcTreasury {}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct FundGodlOtc {
+    pub amount: [u8; 8],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct ExecuteOtcTrade {
+    pub stake_id: [u8; 8],
+    pub sol_in: [u8; 8],
+    pub godl_out: [u8; 8],
+    pub godl_bonus: [u8; 8],
+    pub expiry_slot: [u8; 8],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct WithdrawSolOtc {}
+
 instruction!(GodlInstruction, AutomateV2);
 instruction!(GodlInstruction, AutomateV3);
 instruction!(GodlInstruction, Initialize);
@@ -428,3 +458,7 @@ instruction!(GodlInstruction, InitializeSolMotherlode);
 instruction!(GodlInstruction, InjectGodlMotherlode);
 instruction!(GodlInstruction, StakeNft);
 instruction!(GodlInstruction, UnstakeNft);
+instruction!(GodlInstruction, InitializeOtcTreasury);
+instruction!(GodlInstruction, FundGodlOtc);
+instruction!(GodlInstruction, ExecuteOtcTrade);
+instruction!(GodlInstruction, WithdrawSolOtc);

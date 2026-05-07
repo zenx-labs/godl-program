@@ -11,6 +11,8 @@ mod sol_motherlode;
 mod stake;
 mod stake_v2;
 mod treasury;
+mod otc_treasury;
+mod otc_user;
 
 pub use automation::*;
 pub use automation_v2::*;
@@ -25,6 +27,8 @@ pub use sol_motherlode::*;
 pub use stake::*;
 pub use stake_v2::*;
 pub use treasury::*;
+pub use otc_treasury::*;
+pub use otc_user::*;
 
 use crate::consts::*;
 
@@ -50,6 +54,8 @@ pub enum GodlAccount {
     StakeV2 = 115,
     TreasuryExtended = 116,
     MinerExtended = 117,
+    OtcTreasury = 118,
+    OtcUser = 119,
 }
 
 #[repr(u8)]
@@ -112,4 +118,16 @@ pub fn treasury_tokens_address(treasury_address: Pubkey) -> Pubkey {
 
 pub fn stake_v2_pda(authority: Pubkey, id: u64) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[STAKE_V2, &authority.to_bytes(), &id.to_le_bytes()], &crate::ID)
+}
+
+pub fn otc_treasury_pda() -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[OTC_TREASURY], &crate::ID)
+}
+
+pub fn otc_treasury_tokens_address() -> Pubkey {
+    spl_associated_token_account::get_associated_token_address(&otc_treasury_pda().0, &MINT_ADDRESS)
+}
+
+pub fn otc_user_pda(authority: Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[OTC_USER, &authority.to_bytes()], &crate::ID)
 }

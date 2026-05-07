@@ -94,6 +94,15 @@ pub const TREASURY_EXTENDED: &[u8] = b"treasury_extended";
 /// The seed of the miner extended account PDA.
 pub const MINER_EXTENDED: &[u8] = b"miner_extended";
 
+/// The seed of OTC treasury account PDA.
+pub const OTC_TREASURY: &[u8] = b"otc_treasury";
+
+/// The seed of the per-user OTC account PDA.
+pub const OTC_USER: &[u8] = b"otc_user";
+
+/// The duration of one month, in seconds (30 days).
+pub const ONE_MONTH: i64 = 30 * ONE_DAY;
+
 /// The address of the mint account.
 pub const MINT_ADDRESS: Pubkey = pubkey!("GodL6KZ9uuUoQwELggtVzQkKmU1LfqmDokPibPeDKkhF");
 
@@ -159,3 +168,6 @@ pub const MAX_STAKE_MULTIPLIER: u64 = 20;
 pub const STAKE_MULTIPLIER_SCALE: u64 = 1_000_000_000;
 /// Curve exponent (currently unused; linear curve)
 pub const STAKE_CURVE_EXPONENT: f64 = 1.0;
+
+/// OTC Oracle signer
+pub const OTC_ORACLE_SIGNER: Pubkey = pubkey!("otcSPJAKfmCgMmFkKUGk2kjwSQLSCHw5MJrJyouNFKt");
