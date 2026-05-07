@@ -52,8 +52,6 @@ pub enum GodlAccount {
     PoolRound = 113,
     PoolMember = 114,
     StakeV2 = 115,
-    TreasuryExtended = 116,
-    MinerExtended = 117,
     OtcTreasury = 118,
     OtcUser = 119,
 }

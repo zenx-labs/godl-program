@@ -92,7 +92,7 @@ pub async fn checkpoint_all(
     // Batch and submit the instructions.
     while !ixs.is_empty() {
         let batch = ixs
-            .drain(..std::cmp::min(1, ixs.len()))
+            .drain(..std::cmp::min(10, ixs.len()))
             .collect::<Vec<Instruction>>();
         submit_transaction(rpc, payer, &batch).await?;
     }

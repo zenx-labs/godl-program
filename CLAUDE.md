@@ -73,7 +73,7 @@ The protocol has gone through several rounds of versioning. The mining/round flo
 - `CloseV2` — reclaims rent from expired round + pool-round accounts.
 - `AutomateV3` — configures the executor strategy with optional pool participation.
 
-Earlier variants (`DeployV2`, `Checkpoint`, `ResetV2`, `Close`) are kept in the enum/dispatcher but their handlers return `InvalidInstructionData`. Staking is split between V1 (`Deposit`/`Withdraw`/`ClaimYield`) and V2 (lockable, multiplier-weighted, optional NFT boost via the `NFT_BOOST_COLLECTION` Metaplex Core collection — `StakeNft`/`UnstakeNft` toggle a 1.10× boost on `weighted_units`). `DeployV4`/`CheckpointV4`/`ResetV4`/`AutomateV4`/`ClaimSpl` POD structs exist in `instruction.rs` but are **not yet wired into `GodlInstruction` or the dispatcher** — they are scaffolding for a future SPL-collateral mining track that also includes new state (`TreasuryExtended`, `MinerExtended`, `OTC_Treasury`).
+Earlier variants (`DeployV2`, `Checkpoint`, `ResetV2`, `Close`) are kept in the enum/dispatcher but their handlers return `InvalidInstructionData`. Staking is split between V1 (`Deposit`/`Withdraw`/`ClaimYield`) and V2 (lockable, multiplier-weighted, optional NFT boost via the `NFT_BOOST_COLLECTION` Metaplex Core collection — `StakeNft`/`UnstakeNft` toggle a 1.10× boost on `weighted_units`).
 
 ### Reward accounting pattern
 

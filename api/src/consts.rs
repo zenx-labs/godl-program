@@ -88,12 +88,6 @@ pub const TREASURY: &[u8] = b"treasury";
 /// The seed of the sol motherlode account PDA.
 pub const SOL_MOTHERLODE: &[u8] = b"sol_motherlode";
 
-/// The seed of the treasury extended account PDA.
-pub const TREASURY_EXTENDED: &[u8] = b"treasury_extended";
-
-/// The seed of the miner extended account PDA.
-pub const MINER_EXTENDED: &[u8] = b"miner_extended";
-
 /// The seed of OTC treasury account PDA.
 pub const OTC_TREASURY: &[u8] = b"otc_treasury";
 

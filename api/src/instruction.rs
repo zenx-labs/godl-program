@@ -345,54 +345,6 @@ pub struct UnstakeNft {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub struct InitializeTreasuryExtended {}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub struct UpdateTreasuryExtended {
-    pub spl_mint: [u8; 32],
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub struct InjectSplMotherlode {
-    pub amount: [u8; 8],
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub struct DeployV4 {
-    pub amount: [u8; 8],
-    pub squares: [u8; 4],
-    pub is_pooled: u8,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub struct CheckpointV4 {}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub struct ResetV4 {}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub struct AutomateV4 {
-    pub amount: [u8; 8],
-    pub deposit: [u8; 8],
-    pub fee: [u8; 8],
-    pub mask: [u8; 8],
-    pub strategy: u8,
-    pub claim_and_fund: u8,
-    pub is_pooled: u8,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub struct ClaimSpl {}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct InitializeOtcTreasury {}
 
 #[repr(C)]
