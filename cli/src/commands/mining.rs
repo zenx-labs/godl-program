@@ -92,7 +92,7 @@ pub async fn checkpoint_all(
     // Batch and submit the instructions.
     while !ixs.is_empty() {
         let batch = ixs
-            .drain(..std::cmp::min(10, ixs.len()))
+            .drain(..std::cmp::min(1, ixs.len()))
             .collect::<Vec<Instruction>>();
         submit_transaction(rpc, payer, &batch).await?;
     }
@@ -127,13 +127,6 @@ pub async fn checkpoint_rounds(
         let expires_at = if let Some(slot) = expiry_slots.get(&miner.round_id) {
             *slot
         } else {
-            println!(
-                "[{}/{}] Skipping miner {}: unable to load round {}",
-                i + 1,
-                miners.len(),
-                miner.authority,
-                miner.round_id
-            );
             continue;
         };
 
@@ -157,12 +150,29 @@ pub async fn checkpoint_rounds(
 
     println!("Found {} miners to checkpoint", ixs.len());
 
+    // Build all transactions up-front (as instruction batches).
+    let mut batches: Vec<Vec<Instruction>> = Vec::new();
     while !ixs.is_empty() {
-        let batch = ixs
-            .drain(..std::cmp::min(6, ixs.len()))
-            .collect::<Vec<Instruction>>();
-        submit_transaction(rpc, payer, &batch).await?;
+        batches.push(
+            ixs.drain(..std::cmp::min(6, ixs.len()))
+                .collect::<Vec<Instruction>>(),
+        );
     }
+
+    // Send + confirm everything in parallel.
+    let results = send_and_confirm_transactions_in_parallel_blocking_v2(rpc, payer, batches).await?;
+    let failed = results.iter().filter(|e| e.is_some()).count();
+    if failed > 0 {
+        return Err(anyhow!(
+            "Failed to checkpoint {failed}/{} transactions",
+            results.len()
+        ));
+    }
+
+    // for batch in batches {
+    //     let results = submit_transaction_sender(rpc, payer, &batch, None, None, false).await?;
+    //     println!("Transaction submitted: {:?}", results);
+    // }
 
     Ok(())
 }

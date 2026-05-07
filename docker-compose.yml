@@ -5,7 +5,7 @@ services:
     command: ["bury-listen", "--amount", "0.4"]
     env_file: .env
     volumes:
-      - ./wallets:${PWD}/wallets:ro
+      - ./wallets:/app/wallets:ro
     restart: on-failure
 
   autominer:
@@ -14,5 +14,14 @@ services:
     command: []
     env_file: .env
     volumes:
-      - ./wallets:${PWD}/wallets:ro
+      - ./wallets:/app/wallets:ro
+    restart: on-failure
+
+  board-resetter:
+    build: .
+    entrypoint: ["/app/board_resetter_v3"]
+    command: []
+    env_file: .env
+    volumes:
+      - ./wallets:/app/wallets:ro
     restart: on-failure

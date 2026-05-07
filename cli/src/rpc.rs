@@ -231,6 +231,12 @@ pub async fn get_automations_v2(rpc: &RpcClient) -> Result<Vec<(Pubkey, Automati
 pub async fn get_pool_member(rpc: &RpcClient, authority: Pubkey) -> Result<PoolMember> {
     let pool_member_pda = godl_api::state::pool_member_pda(authority);
     let account = rpc.get_account(&pool_member_pda.0).await?;
+    if account.data.is_empty() {
+        return Err(anyhow::anyhow!(
+            "Pool member account {} has no data",
+            pool_member_pda.0
+        ));
+    }
     let pool_member = PoolMember::try_from_bytes(&account.data)?;
     Ok(*pool_member)
 }

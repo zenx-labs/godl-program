@@ -22,7 +22,7 @@ pub fn process_inject_unrefined_rewards(
         treasury_tokens_info,
         token_program,
     ] = accounts
-    else {
+    else { 
         return Err(ProgramError::NotEnoughAccountKeys);
     };
     signer_info.is_signer()?;
