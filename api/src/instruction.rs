@@ -110,12 +110,6 @@ pub struct InjectUnrefinedRewards {
     pub amount: [u8; 8],
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub struct DeployV2 {
-    pub amount: [u8; 8],
-    pub squares: [u8; 4],
-}
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
@@ -128,10 +122,6 @@ pub struct Deploy {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct Log {}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub struct ResetV2 {}
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]

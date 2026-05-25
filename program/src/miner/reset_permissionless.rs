@@ -1,7 +1,13 @@
 use entropy_api::state::Var;
 use godl_api::prelude::*;
-use solana_program::{keccak, log::sol_log};
+use solana_program::{keccak, log::sol_log, native_token::LAMPORTS_PER_SOL};
 use steel::*;
+
+/// Flat SOL reward paid to whoever cranks the permissionless reset. It is taken
+/// out of the admin fee (not added on top), so total round outflows are
+/// unchanged. Incentivizes bots to keep rounds advancing when the trusted crank
+/// stalls.
+const CRANK_REWARD_LAMPORTS: u64 = LAMPORTS_PER_SOL / 1000; // 0.001 SOL
 
 /// Permissionless variant of `process_reset`.
 ///
@@ -11,6 +17,8 @@ use steel::*;
 ///   winning miner on the winning square, plus the canonical `PoolMember`
 ///   PDA for that miner. Invalid candidates revert instead of falling through
 ///   silently. Pool-vs-solo is then derived from the PoolMember's state.
+/// - Pays the caller a flat SOL crank reward (`CRANK_REWARD_LAMPORTS`) carved
+///   out of the admin fee, as an incentive to run this backstop.
 ///
 /// Intended as a liveness backstop. `process_reset` remains the primary
 /// path for the trusted crank bot.
@@ -150,6 +158,9 @@ pub fn process_reset_permissionless(accounts: &[AccountInfo<'_>], _data: &[u8]) 
     let total_admin_fee = round.total_deployed.checked_mul(ADMIN_FEE_BPS).ok_or(ProgramError::InvalidInstructionData)? / DENOMINATOR_BPS;
     let sol_motherlode_amount = round.total_deployed.checked_mul(SOL_MOTHERLODE_BPS).ok_or(ProgramError::InvalidInstructionData)? / DENOMINATOR_BPS;
 
+    let crank_reward = CRANK_REWARD_LAMPORTS.min(total_admin_fee);
+    let admin_fee = total_admin_fee - crank_reward;
+
     let winning_square = round.winning_square(r);
 
     // If no one deployed on the winning square, vault all deployed.
@@ -182,7 +193,8 @@ pub fn process_reset_permissionless(accounts: &[AccountInfo<'_>], _data: &[u8]) 
         board.start_slot = clock.slot;
         board.end_slot = u64::MAX;
 
-        round_info.send(total_admin_fee, &fee_collector_info);
+        round_info.send(admin_fee, &fee_collector_info);
+        round_info.send(crank_reward, &signer_info);
         round_info.send(sol_motherlode_amount, &sol_motherlode_info);
         round_info.send(round.total_vaulted, &treasury_info);
         return Ok(());
@@ -337,7 +349,8 @@ pub fn process_reset_permissionless(accounts: &[AccountInfo<'_>], _data: &[u8]) 
     board.start_slot = clock.slot;
     board.end_slot = u64::MAX;
 
-    round_info.send(total_admin_fee, &fee_collector_info);
+    round_info.send(admin_fee, &fee_collector_info);
+    round_info.send(crank_reward, &signer_info);
     round_info.send(vault_amount, &treasury_info);
 
     Ok(())
