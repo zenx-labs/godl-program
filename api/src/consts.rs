@@ -38,7 +38,7 @@ pub const ONE_DAY_SLOTS: u64 = 24 * ONE_HOUR_SLOTS;
 pub const ONE_WEEK_SLOTS: u64 = 7 * ONE_DAY_SLOTS;
 
 /// The number of slots for breather between rounds.
-pub const INTERMISSION_SLOTS: u64 = 35;
+pub const INTERMISSION_SLOTS: u64 = 25;
 
 /// The maximum token supply (2.1 million).
 pub const MAX_SUPPLY: u64 = ONE_GODL * 2_100_000;
