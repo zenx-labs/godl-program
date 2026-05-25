@@ -30,10 +30,8 @@ pub fn process_instruction(
         GodlInstruction::Initialize => process_initialize(accounts, data)?,
 
         // Miner
-        GodlInstruction::AutomateV2 => process_automate_v2(accounts, data)?,
-        GodlInstruction::AutomateV3 => process_automate_v3(accounts, data)?,
+        GodlInstruction::Automate => process_automate(accounts, data)?,
         GodlInstruction::Checkpoint => process_checkpoint(accounts, data)?,
-        GodlInstruction::CheckpointV3 => process_checkpoint_v3(accounts, data)?,
         GodlInstruction::ClaimSOL => process_claim_sol(accounts, data)?,
         GodlInstruction::ClaimSOLAndFundAutomation => {
             process_claim_sol_and_fund_automation(accounts, data)?
@@ -46,13 +44,11 @@ pub fn process_instruction(
         GodlInstruction::InitializeReferrer => process_initialize_referrer(accounts, data)?,
         GodlInstruction::SetReferrer => process_set_referrer(accounts, data)?,
         GodlInstruction::ClaimReferral => process_claim_referral(accounts, data)?,
-        GodlInstruction::DeployV2 => process_deploy_v2(accounts, data)?,
-        GodlInstruction::DeployV3 => process_deploy_v3(accounts, data)?,
+        GodlInstruction::Deploy => process_deploy(accounts, data)?,
         GodlInstruction::Log => process_log(accounts, data)?,
         GodlInstruction::Close => process_close(accounts, data)?,
-        GodlInstruction::CloseV2 => process_close_v2(accounts, data)?,
-        GodlInstruction::ResetV2 => process_reset_v2(accounts, data)?,
-        GodlInstruction::ResetV3 => process_reset_v3(accounts, data)?,
+        GodlInstruction::Reset => process_reset(accounts, data)?,
+        GodlInstruction::ResetPermissionless => process_reset_permissionless(accounts, data)?,
 
         // Staker
         GodlInstruction::Deposit => process_deposit(accounts, data)?,

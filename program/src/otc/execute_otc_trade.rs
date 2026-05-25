@@ -19,6 +19,7 @@ pub fn process_execute_otc_trade(accounts: &[AccountInfo<'_>], data: &[u8]) -> P
     let godl_out = u64::from_le_bytes(args.godl_out);
     let godl_bonus = u64::from_le_bytes(args.godl_bonus);
     let expiry_slot = u64::from_le_bytes(args.expiry_slot);
+    let lock_duration = i64::from_le_bytes(args.lock_duration);
 
     // Load accounts.
     let clock = Clock::get()?;
@@ -73,6 +74,11 @@ pub fn process_execute_otc_trade(accounts: &[AccountInfo<'_>], data: &[u8]) -> P
     // Basic input validation.
     if sol_in == 0 || godl_out == 0 {
         return Err(GodlError::AmountTooSmall.into());
+    }
+
+    // Lock duration must be at least 1 month and at most MAX_LOCK_DURATION.
+    if lock_duration < ONE_MONTH || lock_duration > MAX_LOCK_DURATION {
+        return Err(GodlError::InvalidLockDuration.into());
     }
 
     // Fresh stake account is required (we always mint a new locked stake).
@@ -175,9 +181,9 @@ pub fn process_execute_otc_trade(accounts: &[AccountInfo<'_>], data: &[u8]) -> P
     stake.last_withdraw_at = 0;
     stake.rewards_factor = treasury.stake_rewards_factor;
     stake.rewards = 0;
-    stake.multiplier = stake_multiplier(ONE_MONTH);
+    stake.multiplier = stake_multiplier(lock_duration);
     stake.lifetime_rewards = 0;
-    stake.lock_duration = ONE_MONTH;
+    stake.lock_duration = lock_duration;
     stake.executor = *buyer_info.key;
     stake.created_at = clock.unix_timestamp;
     stake.is_nft_staked = 0;

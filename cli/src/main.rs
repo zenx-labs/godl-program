@@ -1,10 +1,12 @@
 mod commands;
 mod display;
+mod jupiter;
 mod rpc;
 mod transaction;
 
 use std::path::PathBuf;
 
+use anyhow::Context;
 use clap::{Parser, Subcommand};
 use commands::*;
 use solana_client::nonblocking::rpc_client::RpcClient;
@@ -46,6 +48,19 @@ struct Cli {
         help = "Path to the payer keypair file"
     )]
     keypair: PathBuf,
+    #[arg(
+        long,
+        env = "JUP_API_KEY",
+        help = "Jupiter Swap V2 API key (required for the bury commands)"
+    )]
+    jup_api_key: Option<String>,
+    #[arg(
+        long,
+        env = "JUP_API_BASE_URL",
+        default_value = jupiter::DEFAULT_BASE_URL,
+        help = "Jupiter Swap API base URL"
+    )]
+    jup_api_base_url: String,
     #[command(subcommand)]
     command: Commands,
 }
@@ -67,16 +82,12 @@ enum Commands {
     Bury {
         #[arg(long, help = "Amount in SOL to swap")]
         amount: f64,
-        #[arg(long, help = "Override the Jupiter API base URL")]
-        api_base_url: Option<String>,
         #[arg(long, help = "Send GODL to warchest instead of burning")]
         no_burn: bool,
     },
     BuryListen {
         #[arg(long, help = "Amount in SOL to swap")]
         amount: f64,
-        #[arg(long, help = "Override the Jupiter API base URL")]
-        api_base_url: Option<String>,
         #[arg(long, help = "Send GODL to warchest instead of burning")]
         no_burn: bool,
     },
@@ -190,6 +201,14 @@ enum Commands {
     Lut,
 }
 
+fn build_jupiter_client(cli: &Cli) -> anyhow::Result<jupiter::JupiterClient> {
+    let api_key = cli
+        .jup_api_key
+        .as_deref()
+        .context("JUP_API_KEY is required for bury commands (set in .env or pass --jup-api-key)")?;
+    Ok(jupiter::JupiterClient::new(&cli.jup_api_base_url, api_key))
+}
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     // Load .env file if it exists (silently ignore if not found)
@@ -229,19 +248,13 @@ async fn main() -> Result<(), anyhow::Error> {
         Commands::Config => {
             log_config(&rpc).await?;
         }
-        Commands::Bury {
-            amount,
-            api_base_url,
-            no_burn,
-        } => {
-            bury(&rpc, &payer, amount, api_base_url, no_burn).await?;
+        Commands::Bury { amount, no_burn } => {
+            let jup = build_jupiter_client(&cli)?;
+            bury(&rpc, &payer, amount, &jup, no_burn).await?;
         }
-        Commands::BuryListen {
-            amount,
-            api_base_url,
-            no_burn,
-        } => {
-            bury_listen(&rpc, &payer, amount, api_base_url, no_burn).await?;
+        Commands::BuryListen { amount, no_burn } => {
+            let jup = build_jupiter_client(&cli)?;
+            bury_listen(&rpc, &payer, amount, &jup, no_burn).await?;
         }
         Commands::ManualBury { amount, no_burn } => {
             manual_bury(&rpc, &payer, amount, no_burn).await?;

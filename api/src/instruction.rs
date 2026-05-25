@@ -1,20 +1,15 @@
 use steel::*;
 
+// ENUM CURSOR: 51
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, TryFromPrimitive)]
 pub enum GodlInstruction {
     // Miner
     Initialize = 1,
-    /// Deprecated: Use `CheckpointV3` instead. Always returns `InvalidInstructionData`.
-    Checkpoint = 2,
     ClaimSOL = 3,
     ClaimGODL = 4,
     InjectUnrefinedRewards = 41,
-    /// Deprecated: Use `CloseV2` instead. Always returns `InvalidInstructionData`.
-    Close = 5,
     Log = 8,
-    /// Deprecated: Use `ResetV3` instead. Always returns `InvalidInstructionData`.
-    ResetV2 = 31,
 
     // Staker
     Deposit = 10,
@@ -39,18 +34,15 @@ pub enum GodlInstruction {
     ClaimReferral = 24,
 
     // New instructions
-    AutomateV2 = 26,
     ClaimSOLAndFundAutomation = 27,
-    /// Deprecated: Use `DeployV3` instead. Always returns `InvalidInstructionData`.
-    DeployV2 = 28,
     FundAutomation = 29,
     BuryTokens = 30,
     InitializeSolMotherlode = 32,
-    DeployV3 = 33,
-    CheckpointV3 = 34,
-    ResetV3 = 35,
-    CloseV2 = 36,
-    AutomateV3 = 37,
+    Deploy = 33,
+    Checkpoint = 34,
+    Reset = 35,
+    Close = 36,
+    Automate = 37,
 
     // Stake V2
     DepositV2 = 38,
@@ -68,22 +60,14 @@ pub enum GodlInstruction {
     FundGodlOtc = 48,
     ExecuteOtcTrade = 49,
     WithdrawSolOtc = 50,
+
+    // Permissionless reset (liveness backstop for `Reset`).
+    ResetPermissionless = 51,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub struct AutomateV2 {
-    pub amount: [u8; 8],
-    pub deposit: [u8; 8],
-    pub fee: [u8; 8],
-    pub mask: [u8; 8],
-    pub strategy: u8,
-    pub claim_and_fund: u8,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub struct AutomateV3 {
+pub struct Automate {
     pub amount: [u8; 8],
     pub deposit: [u8; 8],
     pub fee: [u8; 8],
@@ -135,7 +119,7 @@ pub struct DeployV2 {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub struct DeployV3 {
+pub struct Deploy {
     pub amount: [u8; 8],
     pub squares: [u8; 4],
     pub is_pooled: u8,
@@ -151,7 +135,11 @@ pub struct ResetV2 {}
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub struct ResetV3 {}
+pub struct Reset {}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct ResetPermissionless {}
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
@@ -283,15 +271,7 @@ pub struct Checkpoint {}
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub struct CheckpointV3 {}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct Close {}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub struct CloseV2 {}
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
@@ -361,32 +341,29 @@ pub struct ExecuteOtcTrade {
     pub godl_out: [u8; 8],
     pub godl_bonus: [u8; 8],
     pub expiry_slot: [u8; 8],
+    pub lock_duration: [u8; 8],
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct WithdrawSolOtc {}
 
-instruction!(GodlInstruction, AutomateV2);
-instruction!(GodlInstruction, AutomateV3);
+instruction!(GodlInstruction, Automate);
 instruction!(GodlInstruction, Initialize);
 instruction!(GodlInstruction, Close);
-instruction!(GodlInstruction, CloseV2);
 instruction!(GodlInstruction, Checkpoint);
-instruction!(GodlInstruction, CheckpointV3);
 instruction!(GodlInstruction, ClaimSOL);
 instruction!(GodlInstruction, ClaimSOLAndFundAutomation);
 instruction!(GodlInstruction, FundAutomation);
 instruction!(GodlInstruction, ClaimGODL);
 instruction!(GodlInstruction, InjectUnrefinedRewards);
-instruction!(GodlInstruction, DeployV2);
-instruction!(GodlInstruction, DeployV3);
+instruction!(GodlInstruction, Deploy);
 instruction!(GodlInstruction, Log);
 instruction!(GodlInstruction, PreBury);
 instruction!(GodlInstruction, Bury);
 instruction!(GodlInstruction, BuryTokens);
-instruction!(GodlInstruction, ResetV2);
-instruction!(GodlInstruction, ResetV3);
+instruction!(GodlInstruction, Reset);
+instruction!(GodlInstruction, ResetPermissionless);
 instruction!(GodlInstruction, SetAdmin);
 instruction!(GodlInstruction, SetFeeCollector);
 instruction!(GodlInstruction, SetGodlPerRound);

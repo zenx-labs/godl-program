@@ -8,9 +8,9 @@ use solana_program::{
 use steel::*;
 
 /// Deploys capital to prospect on a square with optional pooling.
-pub fn process_deploy_v3(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResult {
+pub fn process_deploy(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResult {
     // Parse data.
-    let args = DeployV3::try_from_bytes(data)?;
+    let args = Deploy::try_from_bytes(data)?;
     let mut amount = u64::from_le_bytes(args.amount);
     let mask = u32::from_le_bytes(args.squares);
     let mut is_pooled = args.is_pooled != 0;

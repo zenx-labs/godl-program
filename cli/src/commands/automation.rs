@@ -33,7 +33,7 @@ pub async fn reset(
     let sample_ix = entropy_api::sdk::sample(payer.pubkey(), var_address);
     let reveal_ix = entropy_api::sdk::reveal(payer.pubkey(), var_address, response.seed);
     let reset_ix = if let Some(top_miner) = top_miner {
-        godl_api::sdk::reset_v3(
+        godl_api::sdk::reset(
             payer.pubkey(),
             config.fee_collector,
             board.round_id,
@@ -41,7 +41,7 @@ pub async fn reset(
             var_address,
         )
     } else {
-        godl_api::sdk::reset_v3(
+        godl_api::sdk::reset(
             payer.pubkey(),
             config.fee_collector,
             board.round_id,

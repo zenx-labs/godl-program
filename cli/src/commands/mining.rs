@@ -100,7 +100,7 @@ pub async fn checkpoint_all(
     Ok(())
 }
 
-/// Checkpoint all eligible miners using checkpoint_v3
+/// Checkpoint all eligible miners using checkpoint
 pub async fn checkpoint_rounds(
     rpc: &RpcClient,
     payer: &solana_sdk::signer::keypair::Keypair,
@@ -140,7 +140,7 @@ pub async fn checkpoint_rounds(
                 miner.authority,
                 seconds_remaining as f64 * 0.4
             );
-            ixs.push(godl_api::sdk::checkpoint_v3(
+            ixs.push(godl_api::sdk::checkpoint(
                 payer.pubkey(),
                 miner.authority,
                 miner.round_id,
@@ -188,7 +188,7 @@ pub async fn close_all(
 
     for (_address, round) in rounds.iter() {
         if clock.slot >= round.expires_at {
-            ixs.push(godl_api::sdk::close_v2(
+            ixs.push(godl_api::sdk::close(
                 payer.pubkey(),
                 round.id,
                 round.rent_payer,
@@ -225,7 +225,7 @@ pub async fn close_rounds(
             && round.expires_at < clock.slot
             && round.id < board.round_id
         {
-            ixs.push(godl_api::sdk::close_v2(payer_pubkey, round.id, payer_pubkey));
+            ixs.push(godl_api::sdk::close(payer_pubkey, round.id, payer_pubkey));
         }
     }
 
@@ -235,7 +235,7 @@ pub async fn close_rounds(
     let mut batches: Vec<Vec<Instruction>> = Vec::new();
     while !ixs.is_empty() {
         batches.push(
-            ixs.drain(..std::cmp::min(12, ixs.len()))
+            ixs.drain(..std::cmp::min(6, ixs.len()))
                 .collect::<Vec<Instruction>>(),
         );
     }

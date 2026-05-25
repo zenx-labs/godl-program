@@ -63,21 +63,9 @@ All program state lives in PDAs whose seeds are defined as `&[u8]` constants in 
 
 Account discriminants are in the `GodlAccount` enum (`api/src/state/mod.rs`). Each account struct registers itself via the `account!(GodlAccount, MyState)` macro at the bottom of its module. State structs are `#[repr(C)] Pod + Zeroable` and are typically read/written with steel's `as_account::<T>` / `as_account_mut::<T>` helpers, plus `has_seeds(...)` and `has_address(...)` for verification. A `buffer: [u8; N]` field at the end of a struct (e.g. `OTC_Treasury`, `StakeV2`) reserves space for forward-compatible field additions — preserve and respect those.
 
-### Versioned instruction families
-
-The protocol has gone through several rounds of versioning. The mining/round flow is currently **V3**:
-
-- `DeployV3` — places a deployment on a square (0–24); `is_pooled` flag opts the miner into the shared `PoolMember`/`PoolRound` accounts for that round.
-- `CheckpointV3` — settles round results for a miner; for pooled rounds it splits the top-miner share proportionally across pool members.
-- `ResetV3` — closes out a round, verifies the supplied top miner, and (for pool wins) writes `round.top_miner = POOL_ADDRESS` so checkpointing knows to do proportional payouts.
-- `CloseV2` — reclaims rent from expired round + pool-round accounts.
-- `AutomateV3` — configures the executor strategy with optional pool participation.
-
-Earlier variants (`DeployV2`, `Checkpoint`, `ResetV2`, `Close`) are kept in the enum/dispatcher but their handlers return `InvalidInstructionData`. Staking is split between V1 (`Deposit`/`Withdraw`/`ClaimYield`) and V2 (lockable, multiplier-weighted, optional NFT boost via the `NFT_BOOST_COLLECTION` Metaplex Core collection — `StakeNft`/`UnstakeNft` toggle a 1.10× boost on `weighted_units`).
-
 ### Reward accounting pattern
 
-Rewards use a "rewards factor" pattern (cumulative rewards per unit, fixed-point via steel's `Numeric`). See `Treasury::miner_rewards_factor` / `stake_rewards_factor`, and the `update_rewards` methods on `Miner` and `StakeV2`: each account stores the factor it last observed, and pulls its share lazily by multiplying the delta by its weight (deployed / staked / weighted units). Anything that mutates `total_unclaimed`, `total_staked`, or those factors must keep them consistent — the math relies on always calling `update_rewards` *before* changing the weight.
+Rewards use a "rewards factor" pattern (cumulative rewards per unit, fixed-point via steel's `Numeric`). See `Treasury::miner_rewards_factor` / `stake_rewards_factor`, and the `update_rewards` methods on `Miner` and `StakeV2`: each account stores the factor it last observed, and pulls its share lazily by multiplying the delta by its weight (deployed / staked / weighted units). Anything that mutates `total_unclaimed`, `total_staked`, or those factors must keep them consistent — the math relies on always calling `update_rewards` _before_ changing the weight.
 
 ### Bury / treasury flow
 

@@ -14,22 +14,20 @@ GODL is a crypto mining protocol.
 #### Mining
 
 - [`Initialize`](program/src/initialize.rs) - Initializes program variables.
-- [`AutomateV2`](program/src/automation/automate_v2.rs) - Configures the v2 automation strategy.
-- [`AutomateV3`](program/src/automation/automate_v3.rs) - Configures automation with pooled deployment metadata.
+- [`Automate`](program/src/automation/automate.rs) - Configures automation with pooled deployment metadata.
 - [`FundAutomation`](program/src/automation/fund_automation.rs) - Funds an automation account.
 - [`ClaimSOLAndFundAutomation`](program/src/automation/claim_sol_and_fund_automation.rs) - Claims SOL rewards and funds automation in one step.
-- ~~[`Checkpoint`](program/src/miner/checkpoint.rs) - Deprecated. Use `CheckpointV3`.~~
-- [`CheckpointV3`](program/src/miner/checkpoint_v3.rs) - Checkpoints rewards with pooled top-miner sharing.
+- [`Checkpoint`](program/src/miner/checkpoint.rs) - Checkpoints rewards with pooled top-miner sharing.
 - [`ClaimGODL`](program/src/miner/claim_godl.rs) - Claims GODL mining rewards.
 - [`ClaimSOL`](program/src/miner/claim_sol.rs) - Claims SOL mining rewards.
-- ~~[`Close`](program/src/miner/close.rs) - Deprecated. Use `CloseV2`.~~
-- [`CloseV2`](program/src/miner/close_v2.rs) - Closes an expired round and its pool round, returning rent to the payer.
-- ~~[`DeployV2`](program/src/miner/deploy_v2.rs) - Deprecated. Use `DeployV3`.~~
-- [`DeployV3`](program/src/miner/deploy_v3.rs) – Deploys SOL with optional pooling metadata.
+- ~~[`Close`](program/src/miner/close.rs) - Deprecated. Use `Close`.~~
+- [`Close`](program/src/miner/close.rs) - Closes an expired round and its pool round, returning rent to the payer.
+- ~~[`DeployV2`](program/src/miner/deploy_v2.rs) - Deprecated. Use `Deploy`.~~
+- [`Deploy`](program/src/miner/deploy.rs) – Deploys SOL with optional pooling metadata.
 - [`InjectGodlMotherlode`](program/src/miner/inject_godl_motherlode.rs) - Injects GODL into the motherlode rewards pool.
 - [`Log`](program/src/miner/log.rs) – Logs non-truncatable event data.
-- ~~[`ResetV2`](program/src/miner/reset_v2.rs) - Deprecated. Use `ResetV3`.~~
-- [`ResetV3`](program/src/miner/reset_v3.rs) - Resets the board and flags pooled top-miner wins.
+- ~~[`ResetV2`](program/src/miner/reset_v2.rs) - Deprecated. Use `Reset`.~~
+- [`Reset`](program/src/miner/reset.rs) - Resets the board and flags pooled top-miner wins.
 
 #### Referral
 
@@ -87,10 +85,10 @@ GODL is a crypto mining protocol.
 
 ## Mining Pool
 
-- Use [`AutomateV3`](program/src/automation/automate_v3.rs) to configure automation strategies that deploy via the pool without manual toggles.
-- [`DeployV3`](program/src/miner/deploy_v3.rs) (exposed via the CLI `--pooled` flag) opts miners into the shared pool for a round and provisions the `PoolMember`/`PoolRound` accounts.
-- [`CheckpointV3`](program/src/miner/checkpoint_v3.rs) distributes non-split top-miner rewards proportionally between pooled members whenever `ResetV3` flagged the round as a pool win.
-- [`ResetV3`](program/src/miner/reset_v3.rs) verifies the provided top miner and corresponding pool membership before marking `round.top_miner = POOL_ADDRESS`, enabling proportional payouts.
+- Use [`Automate`](program/src/automation/automate.rs) to configure automation strategies that deploy via the pool without manual toggles.
+- [`Deploy`](program/src/miner/deploy.rs) (exposed via the CLI `--pooled` flag) opts miners into the shared pool for a round and provisions the `PoolMember`/`PoolRound` accounts.
+- [`Checkpoint`](program/src/miner/checkpoint.rs) distributes non-split top-miner rewards proportionally between pooled members whenever `Reset` flagged the round as a pool win.
+- [`Reset`](program/src/miner/reset.rs) verifies the provided top miner and corresponding pool membership before marking `round.top_miner = POOL_ADDRESS`, enabling proportional payouts.
 
 ## CLI
 

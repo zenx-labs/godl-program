@@ -1,9 +1,9 @@
 [workspace]
 resolver = "2"
-members = ["api", "program", "cli", "vendor/jupiter-swap-api-client"]
+members = ["api", "program", "cli"]
 
 [workspace.package]
-version = "3.7.5"
+version = "3.1.0"
 edition = "2021"
 license = "Apache-2.0"
 homepage = "https://godl.supply"
@@ -19,7 +19,7 @@ bytemuck = "1.14.3"
 bytemuck_derive = "1.7.0"
 const-crypto = "0.1.0"
 dotenvy = "0.15"
-entropy-api = { git = "https://github.com/oxapo11o/entropy-program.git" }
+entropy-api = { git = "https://github.com/zenx-labs/entropy-program.git", rev = "65713b41d81baff99d2e0a76d25727f624a23cc1" }
 entropy-types = "0.0.1"
 mpl-core = "0.11"
 mpl-token-metadata = "5.1"

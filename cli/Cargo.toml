@@ -18,9 +18,9 @@ dotenvy.workspace = true
 entropy-api.workspace = true
 entropy-types.workspace = true
 hex = "0.4"
-jup-swap = { path = "../vendor/jupiter-swap-api-client", package = "jupiter-swap-api-client" }
 godl-api = { path = "../api" }
 reqwest = { version = "0.11.24", default-features = false, features = ["json"] }
+serde.workspace = true
 serde_json = "1.0.140"
 solana-account-decoder.workspace = true
 solana-address-lookup-table-interface.workspace = true

@@ -1,39 +1,9 @@
 {
-  "version": "3.8.0",
+  "version": "3.1.0",
   "name": "godl",
   "instructions": [
     {
-      "name": "automateV2",
-      "discriminant": { "type": "u8", "value": 26 },
-      "docs": [
-        "Configures or closes an automation_v2 account.",
-        "Automation PDA seeds: [\"automation_v2\", authority].",
-        "Miner PDA seeds: [\"miner\", authority].",
-        "Set claim_and_fund to 1 to allow executors to auto-fund from claims."
-      ],
-      "accounts": [
-        { "name": "signer", "isMut": true, "isSigner": true },
-        { "name": "automationV2", "isMut": true, "isSigner": false },
-        { "name": "executor", "isMut": false, "isSigner": false },
-        { "name": "miner", "isMut": true, "isSigner": false },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false,
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        { "name": "amount", "type": "u64" },
-        { "name": "deposit", "type": "u64" },
-        { "name": "fee", "type": "u64" },
-        { "name": "mask", "type": "u64" },
-        { "name": "strategy", "type": "u8" },
-        { "name": "claimAndFund", "type": "u8" }
-      ]
-    },
-    {
-      "name": "automateV3",
+      "name": "automate",
       "discriminant": { "type": "u8", "value": 37 },
       "docs": [
         "Configures or closes an automation_v2 account with pooled deployment metadata.",
@@ -65,43 +35,7 @@
       ]
     },
     {
-      "name": "deployV2",
-      "discriminant": { "type": "u8", "value": 28 },
-      "docs": [
-        "Deploys SOL to selected squares for the current round (automation_v2).",
-        "Automation PDA seeds: [\"automation_v2\", authority].",
-        "Miner PDA seeds: [\"miner\", authority].",
-        "Round PDA seeds: [\"round\", board.round_id]."
-      ],
-      "accounts": [
-        { "name": "signer", "isMut": true, "isSigner": true },
-        { "name": "authority", "isMut": true, "isSigner": false },
-        { "name": "automationV2", "isMut": true, "isSigner": false },
-        { "name": "board", "isMut": true, "isSigner": false },
-        { "name": "miner", "isMut": true, "isSigner": false },
-        { "name": "round", "isMut": true, "isSigner": false },
-        { "name": "config", "isMut": false, "isSigner": false },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false,
-          "address": "11111111111111111111111111111111"
-        },
-        { "name": "entropyVar", "isMut": true, "isSigner": false },
-        {
-          "name": "entropyProgram",
-          "isMut": false,
-          "isSigner": false,
-          "address": "rngJSm78htuZREU5F3tb3JKnYSaPx1nMHZxyvNNFmxy"
-        }
-      ],
-      "args": [
-        { "name": "amount", "type": "u64" },
-        { "name": "squares", "type": "u32" }
-      ]
-    },
-    {
-      "name": "deployV3",
+      "name": "deploy",
       "discriminant": { "type": "u8", "value": 33 },
       "docs": [
         "Deploys SOL to selected squares with optional pooling for the current round.",
@@ -140,67 +74,7 @@
       ]
     },
     {
-      "name": "resetV2",
-      "discriminant": { "type": "u8", "value": 31 },
-      "docs": [
-        "Finalizes the round, tracks the SOL motherlode, and opens the next round.",
-        "Board PDA seeds: [\"board\"].",
-        "Treasury PDA seeds: [\"treasury\"].",
-        "Round PDA seeds: [\"round\", board.round_id] and [\"round\", board.round_id + 1]."
-      ],
-      "accounts": [
-        { "name": "signer", "isMut": true, "isSigner": true },
-        { "name": "board", "isMut": true, "isSigner": false },
-        { "name": "config", "isMut": false, "isSigner": false },
-        { "name": "feeCollector", "isMut": true, "isSigner": false },
-        {
-          "name": "mint",
-          "isMut": true,
-          "isSigner": false,
-          "address": "GodL6KZ9uuUoQwELggtVzQkKmU1LfqmDokPibPeDKkhF"
-        },
-        { "name": "round", "isMut": true, "isSigner": false },
-        { "name": "roundNext", "isMut": true, "isSigner": false },
-        { "name": "topMiner", "isMut": false, "isSigner": false },
-        { "name": "solMotherlode", "isMut": true, "isSigner": false },
-        { "name": "treasury", "isMut": true, "isSigner": false },
-        { "name": "treasuryTokens", "isMut": true, "isSigner": false },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false,
-          "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false,
-          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-        },
-        {
-          "name": "godlProgram",
-          "isMut": false,
-          "isSigner": false,
-          "address": "mineWsRs2Rmw2jPMkVbgAbDjV1E23yQ8TEodaX3iza4"
-        },
-        {
-          "name": "slotHashesSysvar",
-          "isMut": false,
-          "isSigner": false,
-          "address": "SysvarS1otHashes111111111111111111111111111"
-        },
-        { "name": "entropyVar", "isMut": true, "isSigner": false },
-        {
-          "name": "entropyProgram",
-          "isMut": false,
-          "isSigner": false,
-          "address": "rngJSm78htuZREU5F3tb3JKnYSaPx1nMHZxyvNNFmxy"
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "checkpointV3",
+      "name": "checkpoint",
       "discriminant": { "type": "u8", "value": 34 },
       "docs": [
         "Checkpoint rewards for a miner, optionally distributing pooled top-mine rewards.",
@@ -225,7 +99,7 @@
       "args": []
     },
     {
-      "name": "resetV3",
+      "name": "reset",
       "discriminant": { "type": "u8", "value": 35 },
       "docs": [
         "Finalizes the round and optionally redirects top miner rewards to the pool.",
@@ -285,7 +159,7 @@
       "args": []
     },
     {
-      "name": "closeV2",
+      "name": "close",
       "discriminant": { "type": "u8", "value": 36 },
       "docs": [
         "Closes an expired round and its pool round, returning rent to the payer."
@@ -680,6 +554,218 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "initializeOtcTreasury",
+      "discriminant": { "type": "u8", "value": 47 },
+      "docs": [
+        "Initializes the OTC treasury PDA and its GODL associated token account.",
+        "Deployer-only. OTC treasury PDA seeds: [\"otc_treasury\"]."
+      ],
+      "accounts": [
+        { "name": "signer", "isMut": true, "isSigner": true },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false,
+          "address": "GodL6KZ9uuUoQwELggtVzQkKmU1LfqmDokPibPeDKkhF"
+        },
+        { "name": "otcTreasury", "isMut": true, "isSigner": false },
+        { "name": "otcTreasuryTokens", "isMut": true, "isSigner": false },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false,
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        { "name": "associatedTokenProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": []
+    },
+    {
+      "name": "fundGodlOtc",
+      "discriminant": { "type": "u8", "value": 48 },
+      "docs": [
+        "Permissionless: deposit GODL into the OTC desk's GODL balance.",
+        "Increases OtcTreasury.godl_balance by the deposited amount.",
+        "OTC treasury PDA seeds: [\"otc_treasury\"]."
+      ],
+      "accounts": [
+        { "name": "signer", "isMut": true, "isSigner": true },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false,
+          "address": "GodL6KZ9uuUoQwELggtVzQkKmU1LfqmDokPibPeDKkhF"
+        },
+        { "name": "signerTokens", "isMut": true, "isSigner": false },
+        { "name": "otcTreasury", "isMut": true, "isSigner": false },
+        { "name": "otcTreasuryTokens", "isMut": true, "isSigner": false },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false,
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [{ "name": "amount", "type": "u64" }]
+    },
+    {
+      "name": "executeOtcTrade",
+      "discriminant": { "type": "u8", "value": 49 },
+      "docs": [
+        "Executes an OTC quote co-signed by the buyer and the OTC oracle.",
+        "Pulls sol_in lamports from the buyer to the OTC treasury PDA, mints a fresh",
+        "StakeV2 (locked for lock_duration, between 1 month and 2 years) owned by the buyer with godl_out deposited, and injects",
+        "godl_bonus as unrefined miner rewards (creating the miner if missing).",
+        "Tracks per-user totals in the buyer's OtcUser PDA.",
+        "Rejects when clock.slot > expiry_slot.",
+        "Stake PDA seeds: [\"stake_v2\", buyer, stake_id].",
+        "Miner PDA seeds: [\"miner\", buyer].",
+        "OtcUser PDA seeds: [\"otc_user\", buyer].",
+        "OTC treasury PDA seeds: [\"otc_treasury\"].",
+        "Treasury PDA seeds: [\"treasury\"]."
+      ],
+      "accounts": [
+        { "name": "buyer", "isMut": true, "isSigner": true },
+        {
+          "name": "oracle",
+          "isMut": false,
+          "isSigner": true,
+          "address": "otcSPJAKfmCgMmFkKUGk2kjwSQLSCHw5MJrJyouNFKt"
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false,
+          "address": "GodL6KZ9uuUoQwELggtVzQkKmU1LfqmDokPibPeDKkhF"
+        },
+        { "name": "miner", "isMut": true, "isSigner": false },
+        { "name": "otcUser", "isMut": true, "isSigner": false },
+        { "name": "otcTreasury", "isMut": true, "isSigner": false },
+        { "name": "otcTreasuryTokens", "isMut": true, "isSigner": false },
+        { "name": "treasury", "isMut": true, "isSigner": false },
+        { "name": "treasuryTokens", "isMut": true, "isSigner": false },
+        { "name": "stake", "isMut": true, "isSigner": false },
+        { "name": "stakeTokens", "isMut": true, "isSigner": false },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false,
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        { "name": "associatedTokenProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "stakeId", "type": "u64" },
+        { "name": "solIn", "type": "u64" },
+        { "name": "godlOut", "type": "u64" },
+        { "name": "godlBonus", "type": "u64" },
+        { "name": "expirySlot", "type": "u64" },
+        { "name": "lockDuration", "type": "i64" }
+      ]
+    },
+    {
+      "name": "withdrawSolOtc",
+      "discriminant": { "type": "u8", "value": 50 },
+      "docs": [
+        "Permissionless: drains the OTC desk's accumulated SOL balance to CHEST_ADDRESS.",
+        "Zeros out OtcTreasury.sol_balance and forwards those lamports out of the PDA.",
+        "OTC treasury PDA seeds: [\"otc_treasury\"]."
+      ],
+      "accounts": [
+        { "name": "signer", "isMut": true, "isSigner": true },
+        { "name": "otcTreasury", "isMut": true, "isSigner": false },
+        {
+          "name": "chest",
+          "isMut": true,
+          "isSigner": false,
+          "address": "CHESThUvZPLLSYGa6YKD1LBDe5ktz9KEKnDGDdTiEcmU"
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "resetPermissionless",
+      "discriminant": { "type": "u8", "value": 51 },
+      "docs": [
+        "Permissionless liveness backstop for `reset`; anyone may sign (no CRANK_BOT requirement).",
+        "The caller must always supply the actual winning miner on the winning square and that",
+        "miner's canonical pool member PDA; invalid candidates revert instead of falling through.",
+        "Pool-vs-solo is derived from the pool member's state.",
+        "Board PDA seeds: [\"board\"]. Treasury PDA seeds: [\"treasury\"].",
+        "Round PDA seeds: [\"round\", board.round_id] and [\"round\", board.round_id + 1]."
+      ],
+      "accounts": [
+        { "name": "signer", "isMut": true, "isSigner": true },
+        { "name": "board", "isMut": true, "isSigner": false },
+        { "name": "config", "isMut": false, "isSigner": false },
+        { "name": "feeCollector", "isMut": true, "isSigner": false },
+        {
+          "name": "mint",
+          "isMut": true,
+          "isSigner": false,
+          "address": "GodL6KZ9uuUoQwELggtVzQkKmU1LfqmDokPibPeDKkhF"
+        },
+        { "name": "round", "isMut": true, "isSigner": false },
+        { "name": "roundNext", "isMut": true, "isSigner": false },
+        { "name": "poolRoundNext", "isMut": true, "isSigner": false },
+        { "name": "topMiner", "isMut": true, "isSigner": false },
+        { "name": "topMinerPoolMember", "isMut": false, "isSigner": false },
+        { "name": "solMotherlode", "isMut": true, "isSigner": false },
+        { "name": "treasury", "isMut": true, "isSigner": false },
+        { "name": "treasuryTokens", "isMut": true, "isSigner": false },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false,
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "godlProgram",
+          "isMut": false,
+          "isSigner": false,
+          "address": "mineWsRs2Rmw2jPMkVbgAbDjV1E23yQ8TEodaX3iza4"
+        },
+        {
+          "name": "slotHashesSysvar",
+          "isMut": false,
+          "isSigner": false,
+          "address": "SysvarS1otHashes111111111111111111111111111"
+        },
+        { "name": "entropyVar", "isMut": true, "isSigner": false },
+        {
+          "name": "entropyProgram",
+          "isMut": false,
+          "isSigner": false,
+          "address": "rngJSm78htuZREU5F3tb3JKnYSaPx1nMHZxyvNNFmxy"
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -913,6 +999,41 @@
           { "name": "total_deployed", "type": "u64" }
         ]
       }
+    },
+    {
+      "name": "OtcTreasury",
+      "discriminator": [118, 0, 0, 0, 0, 0, 0, 0],
+      "docs": [
+        "Singleton treasury for the one-way OTC desk (buy GODL with SOL).",
+        "sol_balance tracks lamports on the PDA available to be withdrawn to CHEST_ADDRESS.",
+        "godl_balance tracks GODL held in the OTC ATA available to fulfill trades."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "sol_balance", "type": "u64" },
+          { "name": "godl_balance", "type": "u64" },
+          { "name": "buffer", "type": { "array": ["u8", 32] } }
+        ]
+      }
+    },
+    {
+      "name": "OtcUser",
+      "discriminator": [119, 0, 0, 0, 0, 0, 0, 0],
+      "docs": [
+        "Per-buyer OTC volume tracker. Lazy-created on the buyer's first execute_otc_trade.",
+        "PDA seeds: [\"otc_user\", authority]."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "authority", "type": "publicKey" },
+          { "name": "total_sol_in", "type": "u64" },
+          { "name": "total_godl_out", "type": "u64" },
+          { "name": "total_godl_bonus", "type": "u64" },
+          { "name": "buffer", "type": { "array": ["u8", 32] } }
+        ]
+      }
     }
   ],
   "types": [
@@ -1015,6 +1136,16 @@
       "code": 12,
       "name": "InvalidCollection",
       "msg": "NFT does not belong to the required collection"
+    },
+    {
+      "code": 13,
+      "name": "InsufficientOtcGodlBalance",
+      "msg": "OTC treasury has insufficient GODL balance"
+    },
+    {
+      "code": 14,
+      "name": "OtcQuoteExpired",
+      "msg": "OTC quote has expired"
     }
   ],
   "metadata": {

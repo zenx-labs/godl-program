@@ -1,24 +1,29 @@
 use godl_api::prelude::*;
 use steel::*;
 
-/// Sets the executor.
-pub fn process_automate_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResult {
+/// Sets automation parameters including pooled deployments.
+pub fn process_automate(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResult {
     // Parse data.
-    let args = AutomateV2::try_from_bytes(data)?;
+    let args = Automate::try_from_bytes(data)?;
     let amount = u64::from_le_bytes(args.amount);
     let deposit = u64::from_le_bytes(args.deposit);
     let fee = u64::from_le_bytes(args.fee);
     let mask = u64::from_le_bytes(args.mask);
     let strategy = AutomationV2Strategy::from_u64(args.strategy as u64);
     let claim_and_fund = args.claim_and_fund == 1;
+    let is_pooled = args.is_pooled == 1;
 
     // Load accounts.
-    let [signer_info, automation_v2_info, executor_info, miner_info, system_program] = accounts
+    let [signer_info, automation_v2_info, executor_info, miner_info, pool_member_info, system_program] =
+        accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
     signer_info.is_signer()?;
     automation_v2_info.is_writable()?;
+    pool_member_info
+        .is_writable()?
+        .has_seeds(&[POOL_MEMBER, &signer_info.key.to_bytes()], &godl_api::ID)?;
     system_program.is_program(&system_program::ID)?;
 
     // Open miner account.
@@ -47,22 +52,36 @@ pub fn process_automate_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> Program
     } else {
         miner_info
             .as_account_mut::<Miner>(&godl_api::ID)?
-            .assert_mut_err(
-                |m| m.authority == *signer_info.key,
-                GodlError::NotAuthorized.into(),
-            )?
+            .assert_mut_err(|m| m.authority == *signer_info.key, GodlError::NotAuthorized.into())?
     };
 
     // Close account if executor is Pubkey::default().
     if *executor_info.key == Pubkey::default() {
         automation_v2_info
             .as_account_mut::<AutomationV2>(&godl_api::ID)?
-            .assert_mut_err(
-                |a| a.authority == *signer_info.key,
-                GodlError::NotAuthorized.into(),
-            )?;
+            .assert_mut_err(|a| a.authority == *signer_info.key, GodlError::NotAuthorized.into())?;
         automation_v2_info.close(signer_info)?;
         return Ok(());
+    }
+
+    // Open pool member account when opting into pooling.
+    if is_pooled && pool_member_info.data_is_empty() {
+        create_program_account::<PoolMember>(
+            pool_member_info,
+            system_program,
+            signer_info,
+            &godl_api::ID,
+            &[POOL_MEMBER, &signer_info.key.to_bytes()],
+        )?;
+        let pool_member = pool_member_info.as_account_mut::<PoolMember>(&godl_api::ID)?;
+        pool_member.authority = *signer_info.key;
+        pool_member.round_id = 0;
+        pool_member.deployed = [0; 25];
+        pool_member.total_deployed = 0;
+    } else if !pool_member_info.data_is_empty() {
+        pool_member_info
+            .as_account::<PoolMember>(&godl_api::ID)?
+            .assert(|p| p.authority == *signer_info.key)?;
     }
 
     // Create automation.
@@ -81,10 +100,7 @@ pub fn process_automate_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> Program
     } else {
         automation_v2_info
             .as_account_mut::<AutomationV2>(&godl_api::ID)?
-            .assert_mut_err(
-                |a| a.authority == *signer_info.key,
-                GodlError::NotAuthorized.into(),
-            )?
+            .assert_mut_err(|a| a.authority == *signer_info.key, GodlError::NotAuthorized.into())?
     };
 
     // Set strategy and mask.
@@ -95,6 +111,7 @@ pub fn process_automate_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> Program
     automation_v2.mask = mask;
     automation_v2.set_strategy(strategy);
     automation_v2.set_claim_and_fund(claim_and_fund);
+    automation_v2.set_is_pooled(is_pooled);
 
     // Top up checkpoint fee.
     if miner.checkpoint_fee == 0 {

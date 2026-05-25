@@ -54,40 +54,8 @@ pub fn program_log(accounts: &[AccountInfo], msg: &[u8]) -> Result<(), ProgramEr
 }
 // let [signer_info, automation_info, executor_info, miner_info, system_program] = accounts else {
 
-pub fn automate(
-    signer: Pubkey,
-    amount: u64,
-    deposit: u64,
-    executor: Pubkey,
-    fee: u64,
-    mask: u64,
-    strategy: u8,
-    claim_and_fund: u8,
-) -> Instruction {
-    let automation_v2_address = automation_v2_pda(signer).0;
-    let miner_address = miner_pda(signer).0;
-    Instruction {
-        program_id: crate::ID,
-        accounts: vec![
-            AccountMeta::new(signer, true),
-            AccountMeta::new(automation_v2_address, false),
-            AccountMeta::new(executor, false),
-            AccountMeta::new(miner_address, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: AutomateV2 {
-            amount: amount.to_le_bytes(),
-            deposit: deposit.to_le_bytes(),
-            fee: fee.to_le_bytes(),
-            mask: mask.to_le_bytes(),
-            strategy: strategy as u8,
-            claim_and_fund: claim_and_fund as u8,
-        }
-        .to_bytes(),
-    }
-}
 
-pub fn automate_v3(
+pub fn automate(
     signer: Pubkey,
     amount: u64,
     deposit: u64,
@@ -111,7 +79,7 @@ pub fn automate_v3(
             AccountMeta::new(pool_member_address, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
-        data: AutomateV3 {
+        data: Automate {
             amount: amount.to_le_bytes(),
             deposit: deposit.to_le_bytes(),
             fee: fee.to_le_bytes(),
@@ -346,7 +314,7 @@ pub fn deploy_with_pool(
     squares: [bool; 25],
     is_pooled: bool,
 ) -> Instruction {
-    build_deploy_v3(
+    build_deploy(
         signer,
         authority,
         var_address,
@@ -357,27 +325,8 @@ pub fn deploy_with_pool(
     )
 }
 
-pub fn deploy_v3(
-    signer: Pubkey,
-    authority: Pubkey,
-    var_address: Pubkey,
-    amount: u64,
-    round_id: u64,
-    squares: [bool; 25],
-    is_pooled: bool,
-) -> Instruction {
-    build_deploy_v3(
-        signer,
-        authority,
-        var_address,
-        amount,
-        round_id,
-        squares,
-        is_pooled,
-    )
-}
 
-fn build_deploy_v3(
+fn build_deploy(
     signer: Pubkey,
     authority: Pubkey,
     var_address: Pubkey,
@@ -420,7 +369,7 @@ fn build_deploy_v3(
             AccountMeta::new(var_address, false),
             AccountMeta::new_readonly(entropy_api::ID, false),
         ],
-        data: DeployV3 {
+        data: Deploy {
             amount: amount.to_le_bytes(),
             squares: mask.to_le_bytes(),
             is_pooled: is_pooled as u8,
@@ -573,51 +522,8 @@ pub fn withdraw_vault(signer: Pubkey, amount: u64) -> Instruction {
     }
 }
 
-// let [signer_info, board_info, config_info, fee_collector_info, mint_info, round_info, round_next_info, top_miner_info, sol_motherlode_info, treasury_info, treasury_tokens_info, system_program, token_program, godl_program, slot_hashes_sysvar] =
 
-pub fn reset_v2(
-    signer: Pubkey,
-    fee_collector: Pubkey,
-    round_id: u64,
-    top_miner: Pubkey,
-    var_address: Pubkey,
-) -> Instruction {
-    let board_address = board_pda().0;
-    let config_address = config_pda().0;
-    let mint_address = MINT_ADDRESS;
-    let round_address = round_pda(round_id).0;
-    let round_next_address = round_pda(round_id + 1).0;
-    let top_miner_address = miner_pda(top_miner).0;
-    let sol_motherlode_address = sol_motherlode_pda().0;
-    let treasury_address = treasury_pda().0;
-    let treasury_tokens_address = treasury_tokens_address(treasury_address);
-    Instruction {
-        program_id: crate::ID,
-        accounts: vec![
-            AccountMeta::new(signer, true),
-            AccountMeta::new(board_address, false),
-            AccountMeta::new(config_address, false),
-            AccountMeta::new(fee_collector, false),
-            AccountMeta::new(mint_address, false),
-            AccountMeta::new(round_address, false),
-            AccountMeta::new(round_next_address, false),
-            AccountMeta::new(top_miner_address, false),
-            AccountMeta::new(sol_motherlode_address, false),
-            AccountMeta::new(treasury_address, false),
-            AccountMeta::new(treasury_tokens_address, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(spl_token::ID, false),
-            AccountMeta::new_readonly(crate::ID, false),
-            AccountMeta::new_readonly(sysvar::slot_hashes::ID, false),
-            // Entropy accounts.
-            AccountMeta::new(var_address, false),
-            AccountMeta::new_readonly(entropy_api::ID, false),
-        ],
-        data: ResetV2 {}.to_bytes(),
-    }
-}
-
-pub fn reset_v3(
+pub fn reset(
     signer: Pubkey,
     fee_collector: Pubkey,
     round_id: u64,
@@ -659,32 +565,64 @@ pub fn reset_v3(
             AccountMeta::new(var_address, false),
             AccountMeta::new_readonly(entropy_api::ID, false),
         ],
-        data: ResetV3 {}.to_bytes(),
+        data: Reset {}.to_bytes(),
     }
 }
 
-
-// let [signer_info, board_info, rent_payer_info, round_info, treasury_info, system_program] =
-
-pub fn close(signer: Pubkey, round_id: u64, rent_payer: Pubkey) -> Instruction {
+/// Liveness backstop for `reset`. Anyone may sign.
+///
+/// `top_miner` must be the actual winning miner on the winning square — the
+/// program rejects garbage candidates. For the empty-winning-square and
+/// split-reward cases (where the program never inspects `top_miner_info`),
+/// `Pubkey::default()` is accepted.
+pub fn reset_permissionless(
+    signer: Pubkey,
+    fee_collector: Pubkey,
+    round_id: u64,
+    top_miner: Pubkey,
+    var_address: Pubkey,
+) -> Instruction {
     let board_address = board_pda().0;
-    let treasury_address = treasury_pda().0;
+    let config_address = config_pda().0;
+    let mint_address = MINT_ADDRESS;
     let round_address = round_pda(round_id).0;
+    let round_next_address = round_pda(round_id + 1).0;
+    let pool_round_next_address = pool_round_pda(round_id + 1).0;
+    let top_miner_address = miner_pda(top_miner).0;
+    let top_miner_pool_member_address = pool_member_pda(top_miner).0;
+    let sol_motherlode_address = sol_motherlode_pda().0;
+    let treasury_address = treasury_pda().0;
+    let treasury_tokens_address = treasury_tokens_address(treasury_address);
     Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(signer, true),
             AccountMeta::new(board_address, false),
-            AccountMeta::new(rent_payer, false),
+            AccountMeta::new(config_address, false),
+            AccountMeta::new(fee_collector, false),
+            AccountMeta::new(mint_address, false),
             AccountMeta::new(round_address, false),
+            AccountMeta::new(round_next_address, false),
+            AccountMeta::new(pool_round_next_address, false),
+            AccountMeta::new(top_miner_address, false),
+            AccountMeta::new(top_miner_pool_member_address, false),
+            AccountMeta::new(sol_motherlode_address, false),
             AccountMeta::new(treasury_address, false),
+            AccountMeta::new(treasury_tokens_address, false),
             AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(crate::ID, false),
+            AccountMeta::new_readonly(sysvar::slot_hashes::ID, false),
+            // Entropy accounts.
+            AccountMeta::new(var_address, false),
+            AccountMeta::new_readonly(entropy_api::ID, false),
         ],
-        data: Close {}.to_bytes(),
+        data: ResetPermissionless {}.to_bytes(),
     }
 }
 
-pub fn close_v2(signer: Pubkey, round_id: u64, rent_payer: Pubkey) -> Instruction {
+
+pub fn close(signer: Pubkey, round_id: u64, rent_payer: Pubkey) -> Instruction {
     let board_address = board_pda().0;
     let treasury_address = treasury_pda().0;
     let round_address = round_pda(round_id).0;
@@ -700,17 +638,11 @@ pub fn close_v2(signer: Pubkey, round_id: u64, rent_payer: Pubkey) -> Instructio
             AccountMeta::new(treasury_address, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
-        data: CloseV2 {}.to_bytes(),
+        data: Close {}.to_bytes(),
     }
 }
 
-// let [signer_info, automation_info, board_info, miner_info, round_info, treasury_info, system_program] =
-
 pub fn checkpoint(signer: Pubkey, authority: Pubkey, round_id: u64) -> Instruction {
-    checkpoint_v3(signer, authority, round_id)
-}
-
-pub fn checkpoint_v3(signer: Pubkey, authority: Pubkey, round_id: u64) -> Instruction {
     let miner_address = miner_pda(authority).0;
     let board_address = board_pda().0;
     let round_address = round_pda(round_id).0;
@@ -729,7 +661,7 @@ pub fn checkpoint_v3(signer: Pubkey, authority: Pubkey, round_id: u64) -> Instru
             AccountMeta::new(pool_member_address, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
-        data: CheckpointV3 {}.to_bytes(),
+        data: Checkpoint {}.to_bytes(),
     }
 }
 
@@ -1102,6 +1034,7 @@ pub fn execute_otc_trade(
     godl_out: u64,
     godl_bonus: u64,
     expiry_slot: u64,
+    lock_duration: i64,
 ) -> Instruction {
     let miner_address = miner_pda(buyer).0;
     let otc_user_address = otc_user_pda(buyer).0;
@@ -1135,6 +1068,7 @@ pub fn execute_otc_trade(
             godl_out: godl_out.to_le_bytes(),
             godl_bonus: godl_bonus.to_le_bytes(),
             expiry_slot: expiry_slot.to_le_bytes(),
+            lock_duration: lock_duration.to_le_bytes(),
         }
         .to_bytes(),
     }

@@ -1,35 +1,47 @@
+//! `bury` and `manual-bury` commands.
+//!
+//! `bury` swaps SOL from the GODL treasury into GODL via Jupiter and then
+//! burns (or warchests) the proceeds. The Jupiter HTTP plumbing lives in
+//! [`crate::jupiter`]; this module owns only the GODL-specific transaction
+//! assembly.
+
 use anyhow::Result;
-use jup_swap::{
-    quote::QuoteRequest,
-    swap::SwapRequest,
-    transaction_config::{DynamicSlippageSettings, TransactionConfig},
-    JupiterSwapApiClient,
-};
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::{native_token::LAMPORTS_PER_SOL, pubkey, pubkey::Pubkey, signature::Signer};
+use solana_sdk::{
+    instruction::Instruction, native_token::LAMPORTS_PER_SOL, pubkey, pubkey::Pubkey,
+    signature::Keypair, signature::Signer,
+};
 use spl_associated_token_account::get_associated_token_address;
 use tokio::time::{sleep, Duration};
 
+use crate::jupiter::JupiterClient;
 use crate::transaction::{
     get_address_lookup_table_accounts, submit_transaction,
     submit_transaction_with_address_lookup_tables,
 };
 
-const CHEST_AMOUNT_BPS: u64 = 2500; // 25%
-const ADMIN_AMOUNT_BPS: u64 = 500; // 5%
+/// Share of each bury that goes to the warchest reserve (25%).
+const CHEST_AMOUNT_BPS: u64 = 2500;
+/// Share of each bury that goes to the admin fee account (5%).
+const ADMIN_AMOUNT_BPS: u64 = 500;
 
+/// GODL-managed lookup table; Jupiter doesn't include this in its response so
+/// we fetch it separately and prepend to the route's LUT set.
 const GODL_LUT: Pubkey = pubkey!("CWD8mcpi4QFPZfhgG46cmcytShfEMXWF2gHDjVKaYFce");
 
-/// Manually bury a fixed amount of GODL from the treasury.
+/// How often `bury-listen` polls the treasury balance.
+const POLL_INTERVAL: Duration = Duration::from_secs(30);
+/// How often `manual-bury-listen` polls the treasury GODL balance.
+const MANUAL_POLL_INTERVAL: Duration = Duration::from_secs(60);
+
+/// Manually bury (burn or warchest) a fixed amount of GODL from the treasury.
 pub async fn manual_bury(
     rpc: &RpcClient,
-    payer: &solana_sdk::signer::keypair::Keypair,
+    payer: &Keypair,
     amount_godl: f64,
     no_burn: bool,
 ) -> Result<()> {
-    // Convert GODL (decimal) to base units.
     let amount_units = (amount_godl * godl_api::consts::ONE_GODL as f64) as u64;
-
     if amount_units == 0 {
         println!("Amount too small after conversion; nothing to bury.");
         return Ok(());
@@ -42,104 +54,33 @@ pub async fn manual_bury(
         "Submitted manual-bury for {} GODL ({} base units)",
         amount_godl, amount_units
     );
-
     Ok(())
 }
 
-/// Bury (swap SOL for GODL via Jupiter)
+/// One-shot bury: quote a SOL→GODL swap via Jupiter and execute the GODL
+/// `pre_bury` + `bury` flow.
 pub async fn bury(
     rpc: &RpcClient,
-    payer: &solana_sdk::signer::keypair::Keypair,
+    payer: &Keypair,
     amount_sol: f64,
-    api_base_url: Option<String>,
+    jup: &JupiterClient,
     no_burn: bool,
 ) -> Result<()> {
-    // Convert SOL to lamports.
     let amount = (amount_sol * LAMPORTS_PER_SOL as f64) as u64;
-
-    let chest_amount = (amount * CHEST_AMOUNT_BPS / 10000) as u64;
-    let admin_amount = (amount * ADMIN_AMOUNT_BPS / 10000) as u64;
-    let bury_amount = amount - chest_amount - admin_amount;
-
-    // Build quote request.
-    const INPUT_MINT: Pubkey = pubkey!("So11111111111111111111111111111111111111112");
-    const OUTPUT_MINT: Pubkey = pubkey!("GodL6KZ9uuUoQwELggtVzQkKmU1LfqmDokPibPeDKkhF");
-    let api_base_url = api_base_url.unwrap_or_else(|| "https://lite-api.jup.ag/swap/v1".into());
-    let jupiter_swap_api_client = JupiterSwapApiClient::new(api_base_url);
-    let quote_request = QuoteRequest {
-        amount: bury_amount,
-        input_mint: INPUT_MINT,
-        output_mint: OUTPUT_MINT,
-        max_accounts: Some(55),
-        ..QuoteRequest::default()
-    };
-
-    // GET /quote
-    let quote_response = match jupiter_swap_api_client.quote(&quote_request).await {
-        Ok(quote_response) => quote_response,
-        Err(e) => {
-            println!("quote failed: {e:#?}");
-            return Err(anyhow::anyhow!("quote failed: {e:#?}"));
-        }
-    };
-
-    // GET /swap/instructions
-    let treasury_address = godl_api::state::treasury_pda().0;
-    let response = jupiter_swap_api_client
-        .swap_instructions(&SwapRequest {
-            user_public_key: treasury_address,
-            quote_response,
-            config: TransactionConfig {
-                skip_user_accounts_rpc_calls: false,
-                wrap_and_unwrap_sol: false,
-                dynamic_compute_unit_limit: true,
-                dynamic_slippage: Some(DynamicSlippageSettings {
-                    min_bps: Some(50),
-                    max_bps: Some(1000),
-                }),
-                ..TransactionConfig::default()
-            },
-        })
-        .await
-        .unwrap();
-
-    let mut lut_addresses = vec![GODL_LUT];
-    lut_addresses.extend(response.address_lookup_table_addresses);
-
-    let address_lookup_table_accounts = get_address_lookup_table_accounts(rpc, lut_addresses)
-        .await
-        .unwrap();
-
-    // Build transaction.
-    let pre_bury_ix = godl_api::sdk::pre_bury(payer.pubkey(), bury_amount, chest_amount, admin_amount);
-    let bury_ix = godl_api::sdk::bury(
-        payer.pubkey(),
-        &response.swap_instruction.accounts,
-        &response.swap_instruction.data,
-        no_burn,
-    );
-    submit_transaction_with_address_lookup_tables(
-        rpc,
-        payer,
-        &[pre_bury_ix, bury_ix],
-        address_lookup_table_accounts,
-    )
-    .await?;
-
-    Ok(())
+    execute_bury(rpc, payer, amount, jup, no_burn).await
 }
 
-/// Bury-listen (monitor treasury balance and auto-bury)
+/// Polls the treasury SOL balance and triggers a `bury` whenever it crosses
+/// `amount + 0.1 SOL`.
 pub async fn bury_listen(
     rpc: &RpcClient,
-    payer: &solana_sdk::signer::keypair::Keypair,
+    payer: &Keypair,
     amount_sol: f64,
-    api_base_url: Option<String>,
+    jup: &JupiterClient,
     no_burn: bool,
 ) -> Result<()> {
-    // Convert SOL to lamports.
     let amount = (amount_sol * LAMPORTS_PER_SOL as f64) as u64;
-    let threshold = amount + (LAMPORTS_PER_SOL / 10); // amount + 0.1 SOL
+    let threshold = amount + (LAMPORTS_PER_SOL / 10);
     let treasury_address = godl_api::state::treasury_pda().0;
 
     println!("Starting bury-listen...");
@@ -149,132 +90,45 @@ pub async fn bury_listen(
         "Threshold: {} SOL",
         threshold as f64 / LAMPORTS_PER_SOL as f64
     );
-    println!("Checking treasury balance every 60 seconds...\n");
+    println!(
+        "Checking treasury balance every {} seconds...\n",
+        POLL_INTERVAL.as_secs()
+    );
 
     loop {
-        // Check treasury balance
         match rpc.get_balance(&treasury_address).await {
             Ok(balance) => {
-                let balance_sol = balance as f64 / LAMPORTS_PER_SOL as f64;
-                let threshold_sol = threshold as f64 / LAMPORTS_PER_SOL as f64;
-
                 println!(
                     "[{}] Treasury balance: {} SOL (threshold: {} SOL)",
                     chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                    balance_sol,
-                    threshold_sol
+                    balance as f64 / LAMPORTS_PER_SOL as f64,
+                    threshold as f64 / LAMPORTS_PER_SOL as f64,
                 );
 
                 if balance >= threshold {
                     println!("Balance exceeds threshold! Sending bury transaction...");
-
-                    match execute_bury(rpc, payer, amount, api_base_url.clone(), no_burn).await {
-                        Ok(()) => {
-                            println!("✓ Bury transaction successful!\n");
-                        }
-                        Err(e) => {
-                            println!("✗ Bury transaction failed: {:#?}\n", e);
-                        }
+                    match execute_bury(rpc, payer, amount, jup, no_burn).await {
+                        Ok(()) => println!("✓ Bury transaction successful!\n"),
+                        Err(e) => println!("✗ Bury transaction failed: {:#?}\n", e),
                     }
                 }
             }
-            Err(e) => {
-                println!("Failed to get treasury balance: {:#?}", e);
-            }
+            Err(e) => println!("Failed to get treasury balance: {:#?}", e),
         }
 
-        // Wait 1 minute before next check
-        sleep(Duration::from_secs(30)).await;
+        sleep(POLL_INTERVAL).await;
     }
 }
 
-/// Helper function to execute the bury transaction (extracted from bury function)
-async fn execute_bury(
-    rpc: &RpcClient,
-    payer: &solana_sdk::signer::keypair::Keypair,
-    amount: u64,
-    api_base_url: Option<String>,
-    no_burn: bool,
-) -> Result<()> {
-    let chest_amount = (amount * CHEST_AMOUNT_BPS / 10000) as u64;
-    let admin_amount = (amount * ADMIN_AMOUNT_BPS / 10000) as u64;
-    let bury_amount = amount - chest_amount - admin_amount;
-
-    // Build quote request.
-    const INPUT_MINT: Pubkey = pubkey!("So11111111111111111111111111111111111111112");
-    const OUTPUT_MINT: Pubkey = pubkey!("GodL6KZ9uuUoQwELggtVzQkKmU1LfqmDokPibPeDKkhF");
-    let api_base_url = api_base_url.unwrap_or_else(|| "https://lite-api.jup.ag/swap/v1".into());
-    let jupiter_swap_api_client = JupiterSwapApiClient::new(api_base_url);
-    let quote_request = QuoteRequest {
-        amount: bury_amount,
-        input_mint: INPUT_MINT,
-        output_mint: OUTPUT_MINT,
-        max_accounts: Some(55),
-        ..QuoteRequest::default()
-    };
-
-    // GET /quote
-    let quote_response = match jupiter_swap_api_client.quote(&quote_request).await {
-        Ok(quote_response) => quote_response,
-        Err(e) => {
-            return Err(anyhow::anyhow!("quote failed: {e:#?}"));
-        }
-    };
-
-    // GET /swap/instructions
-    let treasury_address = godl_api::state::treasury_pda().0;
-    let response = jupiter_swap_api_client
-        .swap_instructions(&SwapRequest {
-            user_public_key: treasury_address,
-            quote_response,
-            config: TransactionConfig {
-                skip_user_accounts_rpc_calls: false,
-                wrap_and_unwrap_sol: false,
-                dynamic_compute_unit_limit: true,
-                dynamic_slippage: Some(DynamicSlippageSettings {
-                    min_bps: Some(50),
-                    max_bps: Some(1000),
-                }),
-                ..TransactionConfig::default()
-            },
-        })
-        .await?;
-
-    let mut lut_addresses = vec![GODL_LUT];
-    lut_addresses.extend(response.address_lookup_table_addresses);
-
-    let address_lookup_table_accounts =
-        get_address_lookup_table_accounts(rpc, lut_addresses).await?;
-
-    // Build transaction.
-    let pre_bury_ix = godl_api::sdk::pre_bury(payer.pubkey(), bury_amount, chest_amount, admin_amount);
-    let bury_ix = godl_api::sdk::bury(
-        payer.pubkey(),
-        &response.swap_instruction.accounts,
-        &response.swap_instruction.data,
-        no_burn,
-    );
-    submit_transaction_with_address_lookup_tables(
-        rpc,
-        payer,
-        &[pre_bury_ix, bury_ix],
-        address_lookup_table_accounts,
-    )
-    .await?;
-
-    Ok(())
-}
-
-/// Manually bury when the treasury GODL balance exceeds a threshold.
+/// Polls the treasury GODL balance and triggers a `manual_bury` whenever it
+/// crosses the configured threshold.
 pub async fn manual_bury_listen(
     rpc: &RpcClient,
-    payer: &solana_sdk::signer::keypair::Keypair,
+    payer: &Keypair,
     amount_godl: f64,
     no_burn: bool,
 ) -> Result<()> {
-    // Convert GODL (decimal) to base units for the threshold.
     let threshold_units = (amount_godl * godl_api::consts::ONE_GODL as f64) as u64;
-
     if threshold_units == 0 {
         println!("Threshold too small after conversion; nothing to do.");
         return Ok(());
@@ -288,54 +142,87 @@ pub async fn manual_bury_listen(
     println!("Treasury address: {}", treasury_address);
     println!("Treasury GODL ATA: {}", treasury_godl_address);
     println!("Threshold: {} GODL", amount_godl);
-    println!("Checking treasury GODL balance every 60 seconds...\n");
+    println!(
+        "Checking treasury GODL balance every {} seconds...\n",
+        MANUAL_POLL_INTERVAL.as_secs()
+    );
 
     loop {
         match rpc.get_token_account_balance(&treasury_godl_address).await {
             Ok(balance) => {
                 let balance_units: u64 = balance.amount.parse().unwrap_or(0);
-                let balance_godl = balance_units as f64 / godl_api::consts::ONE_GODL as f64;
-
                 println!(
                     "[{}] Treasury GODL balance: {} GODL ({} units, threshold: {} units)",
                     chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                    balance_godl,
+                    balance_units as f64 / godl_api::consts::ONE_GODL as f64,
                     balance_units,
                     threshold_units,
                 );
 
                 if balance_units >= threshold_units {
                     println!("Balance exceeds threshold! Sending manual-bury transaction...");
-
                     match execute_manual_bury(rpc, payer, threshold_units, no_burn).await {
                         Ok(()) => println!("✓ Manual-bury transaction successful!\n"),
                         Err(e) => println!("✗ Manual-bury transaction failed: {:#?}\n", e),
                     }
                 }
             }
-            Err(e) => {
-                println!("Failed to get treasury GODL balance: {:#?}", e);
-            }
+            Err(e) => println!("Failed to get treasury GODL balance: {:#?}", e),
         }
 
-        // Wait 1 minute before next check
-        sleep(Duration::from_secs(60)).await;
+        sleep(MANUAL_POLL_INTERVAL).await;
     }
 }
 
-/// Helper function to execute the manual-bury transaction.
+// --- shared bury execution ---------------------------------------------------
+
+async fn execute_bury(
+    rpc: &RpcClient,
+    payer: &Keypair,
+    amount_lamports: u64,
+    jup: &JupiterClient,
+    no_burn: bool,
+) -> Result<()> {
+    let chest_amount = amount_lamports * CHEST_AMOUNT_BPS / 10_000;
+    let admin_amount = amount_lamports * ADMIN_AMOUNT_BPS / 10_000;
+    let bury_amount = amount_lamports - chest_amount - admin_amount;
+
+    let treasury_address = godl_api::state::treasury_pda().0;
+    let swap = jup
+        .build_sol_to_godl(treasury_address, payer.pubkey(), bury_amount)
+        .await?;
+
+    // GODL_LUT isn't returned by /build, so still fetch it via RPC.
+    let mut lut_accounts = get_address_lookup_table_accounts(rpc, vec![GODL_LUT]).await?;
+    lut_accounts.extend(swap.lut_accounts);
+
+    let pre_bury_ix =
+        godl_api::sdk::pre_bury(payer.pubkey(), bury_amount, chest_amount, admin_amount);
+    let bury_ix =
+        godl_api::sdk::bury(payer.pubkey(), &swap.swap_accounts, &swap.swap_data, no_burn);
+
+    let mut ixs: Vec<Instruction> = Vec::with_capacity(swap.setup_ixs.len() + 3);
+    ixs.extend(swap.setup_ixs);
+    ixs.push(pre_bury_ix);
+    ixs.push(bury_ix);
+    if let Some(cleanup) = swap.cleanup_ix {
+        ixs.push(cleanup);
+    }
+
+    submit_transaction_with_address_lookup_tables(rpc, payer, &ixs, lut_accounts).await?;
+    Ok(())
+}
+
 async fn execute_manual_bury(
     rpc: &RpcClient,
-    payer: &solana_sdk::signer::keypair::Keypair,
+    payer: &Keypair,
     amount_units: u64,
     no_burn: bool,
 ) -> Result<()> {
     if amount_units == 0 {
         return Ok(());
     }
-
     let ix = godl_api::sdk::bury_tokens(payer.pubkey(), amount_units, no_burn);
     submit_transaction(rpc, payer, &[ix]).await?;
-
     Ok(())
 }
