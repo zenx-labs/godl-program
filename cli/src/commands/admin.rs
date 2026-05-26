@@ -129,6 +129,23 @@ pub async fn inject_godl_motherlode(
     Ok(())
 }
 
+/// Inject unrefined GODL rewards into a miner account (bury authority only).
+pub async fn inject_unrefined_rewards(
+    rpc: &RpcClient,
+    payer: &solana_sdk::signer::keypair::Keypair,
+    miner: Pubkey,
+    amount: f64,
+) -> Result<()> {
+    let amount_raw = spl_token::ui_amount_to_amount(amount, godl_api::consts::TOKEN_DECIMALS);
+    let ix = godl_api::sdk::inject_unrefined_rewards(payer.pubkey(), miner, amount_raw);
+    submit_transaction(rpc, payer, &[ix]).await?;
+    println!(
+        "Injected {} unrefined GODL into miner {}",
+        amount, miner
+    );
+    Ok(())
+}
+
 /// Initialize the SolMotherlode account
 pub async fn initialize_sol_motherlode(
     rpc: &RpcClient,

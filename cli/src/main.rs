@@ -194,6 +194,12 @@ enum Commands {
         #[arg(long, help = "Amount of GODL to inject (decimal, e.g. 1.5)")]
         amount: f64,
     },
+    InjectUnrefinedRewards {
+        #[arg(long, help = "Miner authority address")]
+        miner: Pubkey,
+        #[arg(long, help = "Amount of GODL to inject (e.g. 100, 500)")]
+        amount: f64,
+    },
     Keys {
         #[arg(long, help = "Authority address")]
         authority: Option<Pubkey>,
@@ -348,6 +354,9 @@ async fn main() -> Result<(), anyhow::Error> {
         }
         Commands::InjectGodlMotherlode { amount } => {
             inject_godl_motherlode(&rpc, &payer, amount).await?;
+        }
+        Commands::InjectUnrefinedRewards { miner, amount } => {
+            inject_unrefined_rewards(&rpc, &payer, miner, amount).await?;
         }
         Commands::Keys { authority } => {
             keys(
