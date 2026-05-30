@@ -12,20 +12,8 @@ pub fn process_bury_tokens(accounts: &[AccountInfo<'_>], data: &[u8]) -> Program
     let amount = u64::from_le_bytes(args.amount);
 
     // Load accounts.
-    let [
-        signer_info,
-        board_info,
-        config_info,
-        mint_info,
-        treasury_info,
-        treasury_godl_info,
-        admin_info,
-        admin_godl_info,
-        warchest_info,
-        warchest_godl_info,
-        token_program,
-        godl_program,
-    ] = accounts
+    let [signer_info, board_info, config_info, mint_info, treasury_info, treasury_godl_info, admin_info, admin_godl_info, warchest_info, warchest_godl_info, token_program, godl_program] =
+        accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };

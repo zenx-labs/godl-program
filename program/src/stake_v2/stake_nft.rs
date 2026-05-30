@@ -1,5 +1,5 @@
-use mpl_core::instructions::TransferV1CpiBuilder;
 use godl_api::prelude::*;
+use mpl_core::instructions::TransferV1CpiBuilder;
 use steel::*;
 
 /// Stakes a Metaplex Core NFT from the boost collection to a StakeV2 account,

@@ -3,7 +3,10 @@ use spl_associated_token_account::get_associated_token_address;
 use steel::*;
 
 use crate::{
-    consts::{ADMIN_GODL_FEE, BOARD, CHEST_ADDRESS, MINT_ADDRESS, MPL_CORE_PROGRAM, NFT_BOOST_COLLECTION, OTC_ORACLE_SIGNER, SOL_MINT},
+    consts::{
+        ADMIN_GODL_FEE, BOARD, CHEST_ADDRESS, MINT_ADDRESS, MPL_CORE_PROGRAM, NFT_BOOST_COLLECTION,
+        OTC_ORACLE_SIGNER, SOL_MINT,
+    },
     instruction::*,
     state::*,
 };
@@ -53,7 +56,6 @@ pub fn program_log(accounts: &[AccountInfo], msg: &[u8]) -> Result<(), ProgramEr
     invoke_signed(&log(*accounts[0].key, msg), accounts, &crate::ID, &[BOARD])
 }
 // let [signer_info, automation_info, executor_info, miner_info, system_program] = accounts else {
-
 
 pub fn automate(
     signer: Pubkey,
@@ -325,7 +327,6 @@ pub fn deploy_with_pool(
     )
 }
 
-
 fn build_deploy(
     signer: Pubkey,
     authority: Pubkey,
@@ -480,7 +481,12 @@ pub fn bury(
     }
 }
 
-pub fn pre_bury(signer: Pubkey, bury_amount: u64, chest_amount: u64, admin_amount: u64) -> Instruction {
+pub fn pre_bury(
+    signer: Pubkey,
+    bury_amount: u64,
+    chest_amount: u64,
+    admin_amount: u64,
+) -> Instruction {
     let config_address = config_pda().0;
     let treasury_address = treasury_pda().0;
     let treasury_sol_address = get_associated_token_address(&treasury_address, &SOL_MINT);
@@ -522,7 +528,6 @@ pub fn withdraw_vault(signer: Pubkey, amount: u64) -> Instruction {
     }
 }
 
-
 pub fn reset(
     signer: Pubkey,
     fee_collector: Pubkey,
@@ -541,6 +546,7 @@ pub fn reset(
     let sol_motherlode_address = sol_motherlode_pda().0;
     let treasury_address = treasury_pda().0;
     let treasury_tokens_address = treasury_tokens_address(treasury_address);
+    let godl_mint_authority_address = godl_mint_api::state::authority_pda().0;
     Instruction {
         program_id: crate::ID,
         accounts: vec![
@@ -564,6 +570,9 @@ pub fn reset(
             // Entropy accounts.
             AccountMeta::new(var_address, false),
             AccountMeta::new_readonly(entropy_api::ID, false),
+            // godl-mint CPI accounts.
+            AccountMeta::new(godl_mint_authority_address, false),
+            AccountMeta::new_readonly(godl_mint_api::ID, false),
         ],
         data: Reset {}.to_bytes(),
     }
@@ -593,6 +602,7 @@ pub fn reset_permissionless(
     let sol_motherlode_address = sol_motherlode_pda().0;
     let treasury_address = treasury_pda().0;
     let treasury_tokens_address = treasury_tokens_address(treasury_address);
+    let godl_mint_authority_address = godl_mint_api::state::authority_pda().0;
     Instruction {
         program_id: crate::ID,
         accounts: vec![
@@ -616,11 +626,13 @@ pub fn reset_permissionless(
             // Entropy accounts.
             AccountMeta::new(var_address, false),
             AccountMeta::new_readonly(entropy_api::ID, false),
+            // godl-mint CPI accounts.
+            AccountMeta::new(godl_mint_authority_address, false),
+            AccountMeta::new_readonly(godl_mint_api::ID, false),
         ],
         data: ResetPermissionless {}.to_bytes(),
     }
 }
-
 
 pub fn close(signer: Pubkey, round_id: u64, rent_payer: Pubkey) -> Instruction {
     let board_address = board_pda().0;
@@ -1085,5 +1097,23 @@ pub fn withdraw_sol_otc(signer: Pubkey) -> Instruction {
             AccountMeta::new_readonly(system_program::ID, false),
         ],
         data: WithdrawSolOtc {}.to_bytes(),
+    }
+}
+
+pub fn transfer_mint_authority(signer: Pubkey) -> Instruction {
+    let config_address = config_pda().0;
+    let treasury_address = treasury_pda().0;
+    let godl_mint_authority_address = godl_mint_api::state::authority_pda().0;
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(signer, true),
+            AccountMeta::new_readonly(config_address, false),
+            AccountMeta::new(MINT_ADDRESS, false),
+            AccountMeta::new(treasury_address, false),
+            AccountMeta::new_readonly(godl_mint_authority_address, false),
+            AccountMeta::new_readonly(spl_token::ID, false),
+        ],
+        data: TransferMintAuthority {}.to_bytes(),
     }
 }

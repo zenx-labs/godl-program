@@ -118,7 +118,7 @@ enum Commands {
         amount: u64,
         #[arg(long, help = "Square index to deploy to (0-24)")]
         square: u64,
-        #[arg(long, help = "Deploy using mining pool" )]
+        #[arg(long, help = "Deploy using mining pool")]
         pooled: bool,
     },
     Stake {
@@ -129,7 +129,7 @@ enum Commands {
     DeployAll {
         #[arg(long, help = "Deployment amount in lamports")]
         amount: u64,
-        #[arg(long, help = "Deploy using mining pool" )]
+        #[arg(long, help = "Deploy using mining pool")]
         pooled: bool,
     },
     Round {
@@ -205,6 +205,8 @@ enum Commands {
         authority: Option<Pubkey>,
     },
     Lut,
+    TransferMintAuthority,
+    SimulateTransferMintAuthority,
 }
 
 fn build_jupiter_client(cli: &Cli) -> anyhow::Result<jupiter::JupiterClient> {
@@ -280,7 +282,11 @@ async fn main() -> Result<(), anyhow::Error> {
         Commands::Miner { authority } => {
             log_miner(&rpc, &payer, authority).await?;
         }
-        Commands::Deploy { amount, square, pooled } => {
+        Commands::Deploy {
+            amount,
+            square,
+            pooled,
+        } => {
             deploy(&rpc, &payer, amount, square, pooled).await?;
         }
         Commands::Stake { authority } => {
@@ -367,6 +373,12 @@ async fn main() -> Result<(), anyhow::Error> {
         }
         Commands::Lut => {
             lut(&rpc, &payer).await?;
+        }
+        Commands::TransferMintAuthority => {
+            transfer_mint_authority(&rpc, &payer).await?;
+        }
+        Commands::SimulateTransferMintAuthority => {
+            simulate_transfer_mint_authority(&rpc, &payer).await?;
         }
     }
 

@@ -2,6 +2,7 @@
 target
 test-ledger
 wallets
+wallets.zip
 .env
 .devcontainer
 .claude

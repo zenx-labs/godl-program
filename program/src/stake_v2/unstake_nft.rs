@@ -1,5 +1,5 @@
-use mpl_core::instructions::TransferV1CpiBuilder;
 use godl_api::prelude::*;
+use mpl_core::instructions::TransferV1CpiBuilder;
 use steel::*;
 
 /// Unstakes a Metaplex Core NFT from a StakeV2 account, returning it to the
@@ -27,7 +27,12 @@ pub fn process_unstake_nft(accounts: &[AccountInfo<'_>], data: &[u8]) -> Program
     stake.unstake_nft(treasury)?;
 
     let (_, bump) = stake_v2_pda(*signer_info.key, id);
-    let signer_seeds: &[&[u8]] = &[STAKE_V2, signer_info.key.as_ref(), &id.to_le_bytes(), &[bump]];
+    let signer_seeds: &[&[u8]] = &[
+        STAKE_V2,
+        signer_info.key.as_ref(),
+        &id.to_le_bytes(),
+        &[bump],
+    ];
     TransferV1CpiBuilder::new(mpl_core_program)
         .asset(asset_info)
         .collection(Some(collection_info))

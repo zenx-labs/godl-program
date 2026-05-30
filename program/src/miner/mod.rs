@@ -5,8 +5,8 @@ mod close;
 mod deploy;
 mod inject_godl_motherlode;
 mod log;
-mod reset_permissionless;
 mod reset;
+mod reset_permissionless;
 
 pub use checkpoint::*;
 pub use claim_godl::*;
@@ -15,5 +15,5 @@ pub use close::*;
 pub use deploy::*;
 pub use inject_godl_motherlode::*;
 pub use log::*;
-pub use reset_permissionless::*;
 pub use reset::*;
+pub use reset_permissionless::*;

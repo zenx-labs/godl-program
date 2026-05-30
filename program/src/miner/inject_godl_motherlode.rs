@@ -4,10 +4,7 @@ use spl_token::amount_to_ui_amount;
 use steel::*;
 
 /// Injects GODL into the motherlode rewards pool. Can be called by anyone.
-pub fn process_inject_godl_motherlode(
-    accounts: &[AccountInfo<'_>],
-    data: &[u8],
-) -> ProgramResult {
+pub fn process_inject_godl_motherlode(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResult {
     // Parse data.
     let args = InjectGodlMotherlode::try_from_bytes(data)?;
     let amount = u64::from_le_bytes(args.amount);

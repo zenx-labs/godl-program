@@ -13,16 +13,9 @@ pub fn process_inject_unrefined_rewards(
     let amount = u64::from_le_bytes(args.amount);
 
     // Load accounts.
-    let [
-        signer_info,
-        config_info,
-        miner_info,
-        treasury_info,
-        signer_tokens_info,
-        treasury_tokens_info,
-        token_program,
-    ] = accounts
-    else { 
+    let [signer_info, config_info, miner_info, treasury_info, signer_tokens_info, treasury_tokens_info, token_program] =
+        accounts
+    else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
     signer_info.is_signer()?;

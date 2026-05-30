@@ -1,20 +1,20 @@
-mod initialize;
+mod admin;
 mod automation;
+mod initialize;
 mod miner;
+mod otc;
+mod referral;
 mod stake;
 mod stake_v2;
-mod referral;
-mod admin;
-mod otc;
 
-use initialize::*;
+use admin::*;
 use automation::*;
+use initialize::*;
 use miner::*;
+use otc::*;
+use referral::*;
 use stake::*;
 use stake_v2::*;
-use referral::*;
-use admin::*;
-use otc::*;
 
 use godl_api::instruction::*;
 use steel::*;
@@ -81,18 +81,16 @@ pub fn process_instruction(
         GodlInstruction::InitializeSolMotherlode => {
             process_initialize_sol_motherlode(accounts, data)?
         }
-        GodlInstruction::InjectGodlMotherlode => {
-            process_inject_godl_motherlode(accounts, data)?
-        }
+        GodlInstruction::InjectGodlMotherlode => process_inject_godl_motherlode(accounts, data)?,
 
         // OTC
-        GodlInstruction::InitializeOtcTreasury => {
-            process_initialize_otc_treasury(accounts, data)?
-        }
+        GodlInstruction::InitializeOtcTreasury => process_initialize_otc_treasury(accounts, data)?,
         GodlInstruction::FundGodlOtc => process_fund_godl_otc(accounts, data)?,
         GodlInstruction::ExecuteOtcTrade => process_execute_otc_trade(accounts, data)?,
         GodlInstruction::WithdrawSolOtc => process_withdraw_sol_otc(accounts, data)?,
 
+        // Migration
+        GodlInstruction::TransferMintAuthority => process_transfer_mint_authority(accounts, data)?,
     }
 
     Ok(())

@@ -139,10 +139,7 @@ pub async fn inject_unrefined_rewards(
     let amount_raw = spl_token::ui_amount_to_amount(amount, godl_api::consts::TOKEN_DECIMALS);
     let ix = godl_api::sdk::inject_unrefined_rewards(payer.pubkey(), miner, amount_raw);
     submit_transaction(rpc, payer, &[ix]).await?;
-    println!(
-        "Injected {} unrefined GODL into miner {}",
-        amount, miner
-    );
+    println!("Injected {} unrefined GODL into miner {}", amount, miner);
     Ok(())
 }
 
@@ -154,5 +151,38 @@ pub async fn initialize_sol_motherlode(
     let ix = godl_api::sdk::initialize_sol_motherlode(payer.pubkey());
     submit_transaction(rpc, payer, &[ix]).await?;
     println!("SolMotherlode account initialized successfully");
+    Ok(())
+}
+
+/// Transfer GODL mint authority from the treasury PDA to the godl-mint
+/// program's authority PDA.
+pub async fn transfer_mint_authority(
+    rpc: &RpcClient,
+    payer: &solana_sdk::signer::keypair::Keypair,
+) -> Result<()> {
+    let ix = godl_api::sdk::transfer_mint_authority(payer.pubkey());
+    submit_transaction(rpc, payer, &[ix]).await?;
+    Ok(())
+}
+
+/// Simulate the GODL mint authority transfer and print the PDAs involved.
+pub async fn simulate_transfer_mint_authority(
+    rpc: &RpcClient,
+    payer: &solana_sdk::signer::keypair::Keypair,
+) -> Result<()> {
+    use crate::transaction::simulate_transaction;
+
+    let treasury_address = godl_api::state::treasury_pda().0;
+    let godl_mint_authority_address = godl_mint_api::state::authority_pda().0;
+    println!(
+        "GODL mint:                  {}",
+        godl_api::consts::MINT_ADDRESS
+    );
+    println!("Current authority (treasury PDA):  {treasury_address}");
+    println!("New authority (godl-mint PDA):     {godl_mint_authority_address}");
+    println!("godl-mint program:                 {}", godl_mint_api::ID);
+
+    let ix = godl_api::sdk::transfer_mint_authority(payer.pubkey());
+    simulate_transaction(rpc, payer, &[ix]).await?;
     Ok(())
 }

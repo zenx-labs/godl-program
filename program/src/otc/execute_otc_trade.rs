@@ -31,9 +31,7 @@ pub fn process_execute_otc_trade(accounts: &[AccountInfo<'_>], data: &[u8]) -> P
 
     // Both the buyer and the OTC oracle must sign.
     buyer_info.is_signer()?;
-    oracle_info
-        .is_signer()?
-        .has_address(&OTC_ORACLE_SIGNER)?;
+    oracle_info.is_signer()?.has_address(&OTC_ORACLE_SIGNER)?;
 
     mint_info.has_address(&MINT_ADDRESS)?.as_mint()?;
     miner_info
@@ -54,12 +52,14 @@ pub fn process_execute_otc_trade(accounts: &[AccountInfo<'_>], data: &[u8]) -> P
     treasury_tokens_info
         .is_writable()?
         .as_associated_token_account(treasury_info.key, &MINT_ADDRESS)?;
-    stake_info
-        .is_writable()?
-        .has_seeds(
-            &[STAKE_V2, &buyer_info.key.to_bytes(), &stake_id.to_le_bytes()],
-            &godl_api::ID,
-        )?;
+    stake_info.is_writable()?.has_seeds(
+        &[
+            STAKE_V2,
+            &buyer_info.key.to_bytes(),
+            &stake_id.to_le_bytes(),
+        ],
+        &godl_api::ID,
+    )?;
     stake_tokens_info.is_writable()?;
     system_program.is_program(&system_program::ID)?;
     token_program.is_program(&spl_token::ID)?;
@@ -169,7 +169,11 @@ pub fn process_execute_otc_trade(accounts: &[AccountInfo<'_>], data: &[u8]) -> P
         system_program,
         buyer_info,
         &godl_api::ID,
-        &[STAKE_V2, &buyer_info.key.to_bytes(), &stake_id.to_le_bytes()],
+        &[
+            STAKE_V2,
+            &buyer_info.key.to_bytes(),
+            &stake_id.to_le_bytes(),
+        ],
     )?;
     let treasury = treasury_info.as_account_mut::<Treasury>(&godl_api::ID)?;
     let stake = stake_info.as_account_mut::<StakeV2>(&godl_api::ID)?;

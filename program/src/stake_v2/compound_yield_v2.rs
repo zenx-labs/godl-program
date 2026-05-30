@@ -20,7 +20,10 @@ pub fn process_compound_yield_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> P
     stake_info.is_writable()?;
     stake_tokens_info.is_writable()?;
     treasury_tokens_info.is_writable()?;
-    mint_info.has_address(&MINT_ADDRESS)?.is_writable()?.as_mint()?;
+    mint_info
+        .has_address(&MINT_ADDRESS)?
+        .is_writable()?
+        .as_mint()?;
     treasury_info
         .is_writable()?
         .has_seeds(&[TREASURY], &godl_api::ID)?;
@@ -75,7 +78,8 @@ pub fn process_compound_yield_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> P
     )?;
 
     // Refresh stake token account and deposit compounded rewards.
-    let stake_tokens = stake_tokens_info.as_associated_token_account(stake_info.key, mint_info.key)?;
+    let stake_tokens =
+        stake_tokens_info.as_associated_token_account(stake_info.key, mint_info.key)?;
     let deposited = stake.deposit(amount, &clock, treasury, &stake_tokens)?;
 
     sol_log(

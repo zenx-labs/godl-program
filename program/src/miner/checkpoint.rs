@@ -7,7 +7,8 @@ use steel::*;
 pub fn process_checkpoint(accounts: &[AccountInfo<'_>], _data: &[u8]) -> ProgramResult {
     // Load accounts.
     let clock = Clock::get()?;
-    let [signer_info, board_info, miner_info, round_info, treasury_info, pool_round_info, pool_member_info, system_program] = accounts
+    let [signer_info, board_info, miner_info, round_info, treasury_info, pool_round_info, pool_member_info, system_program] =
+        accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
@@ -131,7 +132,8 @@ pub fn process_checkpoint(accounts: &[AccountInfo<'_>], _data: &[u8]) -> Program
                             // If round is pooled, calculate pool share.
                             rewards_godl = ((round.top_miner_reward as u128
                                 * pool_member.deployed[winning_square] as u128)
-                                / pool_deployed as u128) as u64;
+                                / pool_deployed as u128)
+                                as u64;
                             sol_log(
                                 &format!(
                                     "Pool share: {} GODL",
@@ -140,9 +142,7 @@ pub fn process_checkpoint(accounts: &[AccountInfo<'_>], _data: &[u8]) -> Program
                                 .as_str(),
                             );
                         } else {
-                            sol_log(
-                                "Pool round deployed total is zero; skipping pooled reward"
-                            );
+                            sol_log("Pool round deployed total is zero; skipping pooled reward");
                         }
                     }
                 }

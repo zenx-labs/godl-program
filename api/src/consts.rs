@@ -44,7 +44,7 @@ pub const INTERMISSION_SLOTS: u64 = 25;
 pub const MAX_SUPPLY: u64 = ONE_GODL * 2_100_000;
 
 /// The maximum GODL per round.
-pub const MAX_GODL_PER_ROUND: u64 = ONE_GODL * 100;
+pub const MAX_GODL_PER_ROUND: u64 = ONE_GODL * 40;
 
 /// The seed of the automation account PDA.
 pub const AUTOMATION: &[u8] = b"automation";

@@ -820,6 +820,7 @@ dependencies = [
  "entropy-api",
  "entropy-types",
  "godl-api",
+ "godl-mint-api",
  "hex",
  "reqwest",
  "serde",
@@ -1671,6 +1672,7 @@ dependencies = [
  "bytemuck",
  "const-crypto",
  "entropy-api",
+ "godl-mint-api",
  "num_enum",
  "serde",
  "solana-program",
@@ -1682,12 +1684,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "godl-mint-api"
+version = "3.1.0"
+source = "git+https://github.com/zenx-labs/godl-mint.git?rev=184fd4635e5a35cc3d587651154346f11d9bfb41#184fd4635e5a35cc3d587651154346f11d9bfb41"
+dependencies = [
+ "bytemuck",
+ "num_enum",
+ "serde",
+ "solana-program",
+ "spl-associated-token-account",
+ "spl-token 4.0.2",
+ "steel",
+]
+
+[[package]]
 name = "godl-program"
 version = "3.1.0"
 dependencies = [
  "bincode",
  "entropy-api",
  "godl-api",
+ "godl-mint-api",
  "mpl-core",
  "rand 0.8.5",
  "rmp",

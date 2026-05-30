@@ -52,14 +52,20 @@ pub fn process_automate(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramRes
     } else {
         miner_info
             .as_account_mut::<Miner>(&godl_api::ID)?
-            .assert_mut_err(|m| m.authority == *signer_info.key, GodlError::NotAuthorized.into())?
+            .assert_mut_err(
+                |m| m.authority == *signer_info.key,
+                GodlError::NotAuthorized.into(),
+            )?
     };
 
     // Close account if executor is Pubkey::default().
     if *executor_info.key == Pubkey::default() {
         automation_v2_info
             .as_account_mut::<AutomationV2>(&godl_api::ID)?
-            .assert_mut_err(|a| a.authority == *signer_info.key, GodlError::NotAuthorized.into())?;
+            .assert_mut_err(
+                |a| a.authority == *signer_info.key,
+                GodlError::NotAuthorized.into(),
+            )?;
         automation_v2_info.close(signer_info)?;
         return Ok(());
     }
@@ -100,7 +106,10 @@ pub fn process_automate(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramRes
     } else {
         automation_v2_info
             .as_account_mut::<AutomationV2>(&godl_api::ID)?
-            .assert_mut_err(|a| a.authority == *signer_info.key, GodlError::NotAuthorized.into())?
+            .assert_mut_err(
+                |a| a.authority == *signer_info.key,
+                GodlError::NotAuthorized.into(),
+            )?
     };
 
     // Set strategy and mask.

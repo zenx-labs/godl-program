@@ -70,7 +70,7 @@ pub fn print_treasury(treasury: &Treasury, treasury_address: Pubkey) {
         amount_to_ui_amount(treasury.total_unclaimed, TOKEN_DECIMALS)
     );
     println!(
-            "  total_refined: {} GODL",
+        "  total_refined: {} GODL",
         amount_to_ui_amount(treasury.total_refined, TOKEN_DECIMALS)
     );
 }

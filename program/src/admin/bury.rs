@@ -8,21 +8,8 @@ use steel::*;
 pub fn process_bury(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResult {
     // Load accounts.
     let (godl_accounts, swap_accounts) = accounts.split_at(13);
-    let [
-        signer_info,
-        board_info,
-        config_info,
-        mint_info,
-        treasury_info,
-        treasury_godl_info,
-        treasury_sol_info,
-        admin_info,
-        admin_godl_info,
-        warchest_info,
-        warchest_godl_info,
-        token_program,
-        godl_program,
-    ] = godl_accounts
+    let [signer_info, board_info, config_info, mint_info, treasury_info, treasury_godl_info, treasury_sol_info, admin_info, admin_godl_info, warchest_info, warchest_godl_info, token_program, godl_program] =
+        godl_accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
@@ -147,18 +134,18 @@ pub fn process_bury(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResult 
             Numeric::from_fraction(shared_amount, treasury.total_staked);
     }
 
-       // Share some GODL with admin.
-       let admin_amount = (total_godl * ADMIN_BPS) / DENOMINATOR_BPS; // Share 3% with admin
-       if admin_amount > 0 {
-           transfer_signed(
-               treasury_info,
-               treasury_godl_info,
-               admin_godl_info,
-               token_program,
-               admin_amount,
-               &[TREASURY],
-           )?;
-       }
+    // Share some GODL with admin.
+    let admin_amount = (total_godl * ADMIN_BPS) / DENOMINATOR_BPS; // Share 3% with admin
+    if admin_amount > 0 {
+        transfer_signed(
+            treasury_info,
+            treasury_godl_info,
+            admin_godl_info,
+            token_program,
+            admin_amount,
+            &[TREASURY],
+        )?;
+    }
 
     sol_log(&format!(
         "Shared {} GODL",

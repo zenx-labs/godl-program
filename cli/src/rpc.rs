@@ -122,7 +122,6 @@ pub async fn get_miner(rpc: &RpcClient, authority: Pubkey) -> Result<Miner> {
     Ok(*miner)
 }
 
-
 /// Get all Miner accounts
 pub async fn get_miners(rpc: &RpcClient) -> Result<Vec<(Pubkey, Miner)>> {
     get_program_accounts::<Miner>(rpc, godl_api::ID, vec![]).await

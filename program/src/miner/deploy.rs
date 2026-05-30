@@ -44,9 +44,10 @@ pub fn process_deploy(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResul
     miner_info
         .is_writable()?
         .has_seeds(&[MINER, &authority_info.key.to_bytes()], &godl_api::ID)?;
-    pool_member_info
-        .is_writable()?
-        .has_seeds(&[POOL_MEMBER, &authority_info.key.to_bytes()], &godl_api::ID)?;
+    pool_member_info.is_writable()?.has_seeds(
+        &[POOL_MEMBER, &authority_info.key.to_bytes()],
+        &godl_api::ID,
+    )?;
     system_program.is_program(&system_program::ID)?;
 
     // Wait until first deploy to start round.
@@ -153,7 +154,6 @@ pub fn process_deploy(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResul
             })?
     };
 
-
     // Reset miner
     if miner.round_id != round.id {
         // Assert miner has checkpointed prior round.
@@ -248,7 +248,8 @@ pub fn process_deploy(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResul
                 pool_member.total_deployed = 0;
                 pool_member
             } else {
-                pool_member_info.as_account_mut::<PoolMember>(&godl_api::ID)?
+                pool_member_info
+                    .as_account_mut::<PoolMember>(&godl_api::ID)?
                     .assert_mut(|p| p.authority == *authority_info.key)?
             };
             if pool_member.round_id != round.id {
@@ -280,9 +281,10 @@ pub fn process_deploy(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResul
         miner_info.collect(CHECKPOINT_FEE, &signer_info)?;
     }
 
-
     if is_pooled {
-        let pool_member_total = pool_member_info.as_account::<PoolMember>(&godl_api::ID)?.total_deployed;
+        let pool_member_total = pool_member_info
+            .as_account::<PoolMember>(&godl_api::ID)?
+            .total_deployed;
         if pool_member_total > LAMPORTS_PER_SOL {
             return Err(ProgramError::InvalidInstructionData);
         }

@@ -5,15 +5,8 @@ use steel::*;
 /// Closes a round and its associated pool round, returning rent to the rent payer.
 pub fn process_close(accounts: &[AccountInfo<'_>], _data: &[u8]) -> ProgramResult {
     let clock = Clock::get()?;
-    let [
-        signer_info,
-        board_info,
-        rent_payer_info,
-        round_info,
-        pool_round_info,
-        treasury_info,
-        system_program,
-    ] = accounts
+    let [signer_info, board_info, rent_payer_info, round_info, pool_round_info, treasury_info, system_program] =
+        accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };

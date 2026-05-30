@@ -3,6 +3,8 @@ mod automation_v2;
 mod board;
 mod config;
 mod miner;
+mod otc_treasury;
+mod otc_user;
 mod pool_member;
 mod pool_round;
 mod referrer;
@@ -11,14 +13,14 @@ mod sol_motherlode;
 mod stake;
 mod stake_v2;
 mod treasury;
-mod otc_treasury;
-mod otc_user;
 
 pub use automation::*;
 pub use automation_v2::*;
 pub use board::*;
 pub use config::*;
 pub use miner::*;
+pub use otc_treasury::*;
+pub use otc_user::*;
 pub use pool_member::*;
 pub use pool_round::*;
 pub use referrer::*;
@@ -27,8 +29,6 @@ pub use sol_motherlode::*;
 pub use stake::*;
 pub use stake_v2::*;
 pub use treasury::*;
-pub use otc_treasury::*;
-pub use otc_user::*;
 
 use crate::consts::*;
 
@@ -115,7 +115,10 @@ pub fn treasury_tokens_address(treasury_address: Pubkey) -> Pubkey {
 }
 
 pub fn stake_v2_pda(authority: Pubkey, id: u64) -> (Pubkey, u8) {
-    Pubkey::find_program_address(&[STAKE_V2, &authority.to_bytes(), &id.to_le_bytes()], &crate::ID)
+    Pubkey::find_program_address(
+        &[STAKE_V2, &authority.to_bytes(), &id.to_le_bytes()],
+        &crate::ID,
+    )
 }
 
 pub fn otc_treasury_pda() -> (Pubkey, u8) {

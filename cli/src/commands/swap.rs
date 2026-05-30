@@ -198,8 +198,12 @@ async fn execute_bury(
 
     let pre_bury_ix =
         godl_api::sdk::pre_bury(payer.pubkey(), bury_amount, chest_amount, admin_amount);
-    let bury_ix =
-        godl_api::sdk::bury(payer.pubkey(), &swap.swap_accounts, &swap.swap_data, no_burn);
+    let bury_ix = godl_api::sdk::bury(
+        payer.pubkey(),
+        &swap.swap_accounts,
+        &swap.swap_data,
+        no_burn,
+    );
 
     let mut ixs: Vec<Instruction> = Vec::with_capacity(swap.setup_ixs.len() + 3);
     ixs.extend(swap.setup_ixs);

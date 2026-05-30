@@ -160,7 +160,8 @@ pub async fn checkpoint_rounds(
     }
 
     // Send + confirm everything in parallel.
-    let results = send_and_confirm_transactions_in_parallel_blocking_v2(rpc, payer, batches).await?;
+    let results =
+        send_and_confirm_transactions_in_parallel_blocking_v2(rpc, payer, batches).await?;
     let failed = results.iter().filter(|e| e.is_some()).count();
     if failed > 0 {
         return Err(anyhow!(
@@ -241,7 +242,8 @@ pub async fn close_rounds(
     }
 
     // Send + confirm everything in parallel.
-    let results = send_and_confirm_transactions_in_parallel_blocking_v2(rpc, payer, batches).await?;
+    let results =
+        send_and_confirm_transactions_in_parallel_blocking_v2(rpc, payer, batches).await?;
     let failed = results.iter().filter(|e| e.is_some()).count();
     if failed > 0 {
         return Err(anyhow!(

@@ -63,8 +63,7 @@ impl StakeV2 {
         if amount == 0 || self.multiplier == 0 {
             return Ok(0);
         }
-        let weighted =
-            (amount as u128 * self.multiplier as u128) / STAKE_MULTIPLIER_SCALE as u128;
+        let weighted = (amount as u128 * self.multiplier as u128) / STAKE_MULTIPLIER_SCALE as u128;
         if weighted > u64::MAX as u128 {
             return Err(GodlError::StakeOverflow.into());
         }
@@ -90,7 +89,12 @@ impl StakeV2 {
         stake_v2_pda(self.authority, self.id)
     }
 
-    pub fn claim(&mut self, amount: u64, clock: &Clock, treasury: &Treasury) -> Result<u64, ProgramError> {
+    pub fn claim(
+        &mut self,
+        amount: u64,
+        clock: &Clock,
+        treasury: &Treasury,
+    ) -> Result<u64, ProgramError> {
         self.update_rewards(treasury)?;
         let amount = self.rewards.min(amount);
         self.rewards -= amount;
@@ -128,7 +132,12 @@ impl StakeV2 {
         Ok(amount)
     }
 
-    pub fn withdraw(&mut self, amount: u64, clock: &Clock, treasury: &mut Treasury) -> Result<u64, ProgramError> {
+    pub fn withdraw(
+        &mut self,
+        amount: u64,
+        clock: &Clock,
+        treasury: &mut Treasury,
+    ) -> Result<u64, ProgramError> {
         self.update_rewards(treasury)?;
         let amount = self.balance.min(amount);
         let prev_units = self.weighted_units()?;

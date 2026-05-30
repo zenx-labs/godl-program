@@ -19,9 +19,9 @@ use steel::*;
 pub fn process_reset(accounts: &[AccountInfo<'_>], _data: &[u8]) -> ProgramResult {
     // Load accounts.
     let clock = Clock::get()?;
-    let (godl_accounts, entropy_accounts) = accounts.split_at(17);
+    let (godl_accounts, other_accounts) = accounts.split_at(17);
     sol_log(&format!("Godl accounts: {:?}", godl_accounts.len()).to_string());
-    sol_log(&format!("Entropy accounts: {:?}", entropy_accounts.len()).to_string());
+    sol_log(&format!("Other accounts: {:?}", other_accounts.len()).to_string());
     let [signer_info, board_info, config_info, fee_collector_info, mint_info, round_info, round_next_info, pool_round_next_info, top_miner_info, top_miner_pool_member_info, sol_motherlode_info, treasury_info, treasury_tokens_info, system_program, token_program, godl_program, slot_hashes_sysvar] =
         godl_accounts
     else {
@@ -42,10 +42,10 @@ pub fn process_reset(accounts: &[AccountInfo<'_>], _data: &[u8]) -> ProgramResul
         .is_empty()?
         .is_writable()?
         .has_seeds(&[ROUND, &(board.round_id + 1).to_le_bytes()], &godl_api::ID)?;
-    pool_round_next_info
-        .is_empty()?
-        .is_writable()?
-        .has_seeds(&[POOL_ROUND, &(board.round_id + 1).to_le_bytes()], &godl_api::ID)?;
+    pool_round_next_info.is_empty()?.is_writable()?.has_seeds(
+        &[POOL_ROUND, &(board.round_id + 1).to_le_bytes()],
+        &godl_api::ID,
+    )?;
     let mint = mint_info.has_address(&MINT_ADDRESS)?.as_mint()?;
     let sol_motherlode = sol_motherlode_info
         .is_writable()?
@@ -96,8 +96,8 @@ pub fn process_reset(accounts: &[AccountInfo<'_>], _data: &[u8]) -> ProgramResul
     pool_round_next.rent_payer = *signer_info.key;
 
     // Sample random variable
+    let (entropy_accounts, mint_accounts) = other_accounts.split_at(2);
     let [var_info, entropy_program] = entropy_accounts else {
-
         return Err(ProgramError::NotEnoughAccountKeys);
     };
     let var = var_info
@@ -156,10 +156,18 @@ pub fn process_reset(accounts: &[AccountInfo<'_>], _data: &[u8]) -> ProgramResul
     };
 
     // Caculate admin fees.
-    let total_admin_fee = round.total_deployed.checked_mul(ADMIN_FEE_BPS).ok_or(ProgramError::InvalidInstructionData)? / DENOMINATOR_BPS;
+    let total_admin_fee = round
+        .total_deployed
+        .checked_mul(ADMIN_FEE_BPS)
+        .ok_or(ProgramError::InvalidInstructionData)?
+        / DENOMINATOR_BPS;
 
     // Calculate sol motherlode amount.
-    let sol_motherlode_amount = round.total_deployed.checked_mul(SOL_MOTHERLODE_BPS).ok_or(ProgramError::InvalidInstructionData)? / DENOMINATOR_BPS; 
+    let sol_motherlode_amount = round
+        .total_deployed
+        .checked_mul(SOL_MOTHERLODE_BPS)
+        .ok_or(ProgramError::InvalidInstructionData)?
+        / DENOMINATOR_BPS;
 
     // Get the winning square.
     let winning_square = round.winning_square(r);
@@ -206,7 +214,10 @@ pub fn process_reset(accounts: &[AccountInfo<'_>], _data: &[u8]) -> ProgramResul
 
     // Get winnings amount (total deployed on all non-winning squares).
     let winnings = round.calculate_total_winnings(winning_square);
-    let winnings_fees = winnings.checked_mul(ADMIN_FEE_BPS + SOL_MOTHERLODE_BPS).ok_or(ProgramError::InvalidInstructionData)? / DENOMINATOR_BPS;
+    let winnings_fees = winnings
+        .checked_mul(ADMIN_FEE_BPS + SOL_MOTHERLODE_BPS)
+        .ok_or(ProgramError::InvalidInstructionData)?
+        / DENOMINATOR_BPS;
     let winnings = winnings - winnings_fees;
 
     // Subtract vault amount from the winnings.
@@ -228,21 +239,18 @@ pub fn process_reset(accounts: &[AccountInfo<'_>], _data: &[u8]) -> ProgramResul
                 + winnings_fees
     );
 
-    // Mint GODL for the winning miner(s).
+    // Calculate mint amounts.
     let godl_per_round = config.godl_per_round;
-    let mint_amount = MAX_SUPPLY.saturating_sub(mint.supply()).min(godl_per_round);
-    round.top_miner_reward = mint_amount;
-    if mint_amount > 0 {
-        mint_to_signed(
-            mint_info,
-            treasury_tokens_info,
-            treasury_info,
-            token_program,
-            mint_amount,
-            &[TREASURY],
-        )?;
-    }
+    let mut mint_supply = mint.supply();
+    let mint_amount = MAX_SUPPLY.saturating_sub(mint_supply).min(godl_per_round);
+    mint_supply += mint_amount;
+    let motherlode_denominator = config.motherlode_denominator;
+    let motherlode_mint_amount = MAX_SUPPLY
+        .saturating_sub(mint_supply)
+        .min(godl_per_round / motherlode_denominator);
+    let total_mint_amount = mint_amount + motherlode_mint_amount;
 
+    round.top_miner_reward = mint_amount;
 
     // With 1 in 2 odds, split the GODL reward.
     if round.is_split_reward(r) {
@@ -293,23 +301,29 @@ pub fn process_reset(accounts: &[AccountInfo<'_>], _data: &[u8]) -> ProgramResul
         }
     }
 
-    let motherlode_denominator = config.motherlode_denominator;
-
-    // Mint 1/denominator of the godl per round to the motherlode rewards pool.
-    let mint = mint_info.as_mint()?;
-    let motherlode_mint_amount = MAX_SUPPLY
-        .saturating_sub(mint.supply())
-        .min(godl_per_round / motherlode_denominator);
+    // Mint GODL to the treasury.
     if motherlode_mint_amount > 0 {
-        mint_to_signed(
-            mint_info,
-            treasury_tokens_info,
-            treasury_info,
-            token_program,
-            motherlode_mint_amount,
+        treasury.motherlode += motherlode_mint_amount;
+    }
+    if total_mint_amount > 0 {
+        let [godl_mint_authority_info, godl_mint_program] = mint_accounts else {
+            return Err(ProgramError::NotEnoughAccountKeys);
+        };
+        godl_mint_authority_info
+            .as_account::<godl_mint_api::state::Authority>(&godl_mint_api::ID)?;
+        godl_mint_program.is_program(&godl_mint_api::ID)?;
+        invoke_signed(
+            &godl_mint_api::sdk::mint_godl(total_mint_amount),
+            &[
+                treasury_info.clone(),
+                godl_mint_authority_info.clone(),
+                mint_info.clone(),
+                treasury_tokens_info.clone(),
+                token_program.clone(),
+            ],
+            &godl_api::ID,
             &[TREASURY],
         )?;
-        treasury.motherlode += motherlode_mint_amount;
     }
 
     // Transfer SOL from round to sol motherlode.
@@ -317,7 +331,6 @@ pub fn process_reset(accounts: &[AccountInfo<'_>], _data: &[u8]) -> ProgramResul
         round_info.send(sol_motherlode_amount, &sol_motherlode_info);
         sol_motherlode.amount += sol_motherlode_amount;
     }
-
 
     // Emit event.
     program_log(
@@ -334,7 +347,7 @@ pub fn process_reset(accounts: &[AccountInfo<'_>], _data: &[u8]) -> ProgramResul
             total_deployed: round.total_deployed,
             total_vaulted: round.total_vaulted,
             total_winnings: round.total_winnings,
-            total_minted: mint_amount + motherlode_mint_amount,
+            total_minted: total_mint_amount,
             ts: clock.unix_timestamp,
         }
         .to_bytes(),

@@ -9,7 +9,6 @@ use super::GodlAccount;
 pub struct SolMotherlode {
     /// The amount of SOL in the motherlode rewards pool.
     pub amount: u64,
-
 }
 
 account!(GodlAccount, SolMotherlode);

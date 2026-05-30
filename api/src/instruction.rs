@@ -1,6 +1,6 @@
 use steel::*;
 
-// ENUM CURSOR: 51
+// ENUM CURSOR: 52
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, TryFromPrimitive)]
 pub enum GodlInstruction {
@@ -50,7 +50,7 @@ pub enum GodlInstruction {
     ClaimYieldV2 = 40,
     CompoundYieldV2 = 42,
     SetStakeExecutorV2 = 43,
-    
+
     InjectGodlMotherlode = 44,
     StakeNft = 45,
     UnstakeNft = 46,
@@ -63,6 +63,8 @@ pub enum GodlInstruction {
 
     // Permissionless reset (liveness backstop for `Reset`).
     ResetPermissionless = 51,
+
+    TransferMintAuthority = 52,
 }
 
 #[repr(C)]
@@ -109,7 +111,6 @@ pub struct ClaimGODL {}
 pub struct InjectUnrefinedRewards {
     pub amount: [u8; 8],
 }
-
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
@@ -338,6 +339,10 @@ pub struct ExecuteOtcTrade {
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct WithdrawSolOtc {}
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct TransferMintAuthority {}
+
 instruction!(GodlInstruction, Automate);
 instruction!(GodlInstruction, Initialize);
 instruction!(GodlInstruction, Close);
@@ -381,3 +386,4 @@ instruction!(GodlInstruction, InitializeOtcTreasury);
 instruction!(GodlInstruction, FundGodlOtc);
 instruction!(GodlInstruction, ExecuteOtcTrade);
 instruction!(GodlInstruction, WithdrawSolOtc);
+instruction!(GodlInstruction, TransferMintAuthority);

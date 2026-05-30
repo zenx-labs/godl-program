@@ -53,7 +53,7 @@ pub fn process_pre_bury(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramRes
     treasury_info.send(bury_amount, treasury_sol_info);
     treasury_info.send(chest_amount, chest_info);
     treasury_info.send(admin_amount, admin_info);
-    
+
     // Update treasury.
     treasury.balance -= total_amount;
 
