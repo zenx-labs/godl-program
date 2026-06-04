@@ -21,9 +21,7 @@ use crate::transaction::{
 };
 
 /// Share of each bury that goes to the warchest reserve (25%).
-const CHEST_AMOUNT_BPS: u64 = 2500;
-/// Share of each bury that goes to the admin fee account (5%).
-const ADMIN_AMOUNT_BPS: u64 = 500;
+const CHEST_AMOUNT_BPS: u64 = 1000;
 
 /// GODL-managed lookup table; Jupiter doesn't include this in its response so
 /// we fetch it separately and prepend to the route's LUT set.
@@ -184,8 +182,7 @@ async fn execute_bury(
     no_burn: bool,
 ) -> Result<()> {
     let chest_amount = amount_lamports * CHEST_AMOUNT_BPS / 10_000;
-    let admin_amount = amount_lamports * ADMIN_AMOUNT_BPS / 10_000;
-    let bury_amount = amount_lamports - chest_amount - admin_amount;
+    let bury_amount = amount_lamports - chest_amount;
 
     let treasury_address = godl_api::state::treasury_pda().0;
     let swap = jup
@@ -197,7 +194,7 @@ async fn execute_bury(
     lut_accounts.extend(swap.lut_accounts);
 
     let pre_bury_ix =
-        godl_api::sdk::pre_bury(payer.pubkey(), bury_amount, chest_amount, admin_amount);
+        godl_api::sdk::pre_bury(payer.pubkey(), bury_amount, chest_amount, 0);
     let bury_ix = godl_api::sdk::bury(
         payer.pubkey(),
         &swap.swap_accounts,

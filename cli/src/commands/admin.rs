@@ -116,6 +116,17 @@ pub async fn simulate_withdraw_vault(
     Ok(())
 }
 
+/// Withdraw the OTC desk's accumulated SOL balance to the chest (permissionless).
+pub async fn withdraw_sol_otc(
+    rpc: &RpcClient,
+    payer: &solana_sdk::signer::keypair::Keypair,
+) -> Result<()> {
+    let ix = godl_api::sdk::withdraw_sol_otc(payer.pubkey());
+    submit_transaction(rpc, payer, &[ix]).await?;
+    println!("Withdrew OTC treasury SOL balance to chest");
+    Ok(())
+}
+
 /// Inject GODL into the motherlode rewards pool
 pub async fn inject_godl_motherlode(
     rpc: &RpcClient,

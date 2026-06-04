@@ -17,6 +17,7 @@ use stake::*;
 use stake_v2::*;
 
 use godl_api::instruction::*;
+use solana_security_txt::security_txt;
 use steel::*;
 
 pub fn process_instruction(
@@ -97,3 +98,12 @@ pub fn process_instruction(
 }
 
 entrypoint!(process_instruction);
+
+security_txt! { 
+    name: "Godl",
+    project_url: "https://godl.supply",
+    contacts: "email:bootapollo@pm.me,telegram:bootapollo",
+    policy: "https://github.com/zenx-labs/godl-program/blob/main/SECURITY.md",
+    preferred_languages: "en",
+    source_code: "https://github.com/zenx-labs/godl-program"
+}

@@ -16,7 +16,7 @@ use solana_sdk::{
 };
 use std::{collections::HashMap, str::FromStr};
 
-pub const DEFAULT_BASE_URL: &str = "https://api.jup.ag/swap/v2";
+pub const DEFAULT_BASE_URL: &str = "https://proxy.godl.dev/api.jup.ag/swap/v2";
 
 const WSOL_MINT: Pubkey = pubkey!("So11111111111111111111111111111111111111112");
 const GODL_MINT: Pubkey = pubkey!("GodL6KZ9uuUoQwELggtVzQkKmU1LfqmDokPibPeDKkhF");
@@ -28,7 +28,7 @@ const MAX_ACCOUNTS: u32 = 55;
 /// Restrict routing to Meteora pools that have direct SOL↔GODL liquidity, so
 /// `RouteV2` (which requires the taker to own every intermediate token
 /// account) doesn't need to create new ATAs we'd have to manage later.
-const DEXES_ALLOWLIST: &str = "Meteora DLMM,Meteora DAMM v2";
+const DEXES_ALLOWLIST: &str = "Meteora DAMM v2";
 
 /// Parsed `/build` response, ready to splice into a transaction alongside the
 /// GODL `pre_bury` / `bury` instructions.
@@ -186,3 +186,5 @@ fn parse_instruction(ix: ApiInstruction) -> Result<Instruction> {
         data: base64::engine::general_purpose::STANDARD.decode(&ix.data)?,
     })
 }
+
+

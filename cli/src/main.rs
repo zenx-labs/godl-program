@@ -189,6 +189,7 @@ enum Commands {
         #[arg(long, help = "Amount in lamports to withdraw from treasury vault")]
         amount: u64,
     },
+    WithdrawSolOtc,
     InitializeSolMotherlode,
     InjectGodlMotherlode {
         #[arg(long, help = "Amount of GODL to inject (decimal, e.g. 1.5)")]
@@ -354,6 +355,9 @@ async fn main() -> Result<(), anyhow::Error> {
         }
         Commands::SimulateWithdrawVault { amount } => {
             simulate_withdraw_vault(&rpc, &payer, amount).await?;
+        }
+        Commands::WithdrawSolOtc => {
+            withdraw_sol_otc(&rpc, &payer).await?;
         }
         Commands::InitializeSolMotherlode => {
             initialize_sol_motherlode(&rpc, &payer).await?;

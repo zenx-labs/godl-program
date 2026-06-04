@@ -175,3 +175,61 @@ pub async fn get_automations(rpc: &RpcClient) -> Result<Vec<(Pubkey, Automation)
     let filter = RpcFilterType::Memcmp(Memcmp::new_base58_encoded(56, &EXECUTOR.to_bytes()));
     get_program_accounts::<Automation>(rpc, godl_api::ID, vec![filter]).await
 }
+
+/// Get all AutomationV2 accounts for the zenx executor
+pub async fn get_automations_v2(rpc: &RpcClient) -> Result<Vec<(Pubkey, AutomationV2)>> {
+    use solana_sdk::pubkey;
+    const EXECUTOR: Pubkey = pubkey!("botHfLbBG8oSrohhfCF63xj3LhpBjJrYQkyE27gA4rN");
+    let filter = RpcFilterType::Memcmp(Memcmp::new_base58_encoded(56, &EXECUTOR.to_bytes()));
+    get_program_accounts::<AutomationV2>(rpc, godl_api::ID, vec![filter]).await
+}
+
+/// Get a PoolMember account by authority
+pub async fn get_pool_member(rpc: &RpcClient, authority: Pubkey) -> Result<PoolMember> {
+    let pool_member_pda = godl_api::state::pool_member_pda(authority);
+    let account = rpc.get_account(&pool_member_pda.0).await?;
+    if account.data.is_empty() {
+        return Err(anyhow::anyhow!(
+            "Pool member account {} has no data",
+            pool_member_pda.0
+        ));
+    }
+    let pool_member = PoolMember::try_from_bytes(&account.data)?;
+    Ok(*pool_member)
+}
+
+/// Get Miner accounts for a list of authorities
+pub async fn get_miners_by_authorities(
+    rpc: &RpcClient,
+    authorities: &[Pubkey],
+) -> Result<Vec<Miner>> {
+    if authorities.is_empty() {
+        return Ok(vec![]);
+    }
+
+    const MAX_BATCH_SIZE: usize = 100;
+    let mut miners = Vec::with_capacity(authorities.len());
+
+    for chunk in authorities.chunks(MAX_BATCH_SIZE) {
+        let miner_addresses: Vec<Pubkey> = chunk
+            .iter()
+            .map(|authority| godl_api::state::miner_pda(*authority).0)
+            .collect();
+        let accounts = rpc.get_multiple_accounts(&miner_addresses).await?;
+
+        for (authority, account) in chunk.iter().zip(accounts.into_iter()) {
+            let account = account.ok_or_else(|| {
+                anyhow::anyhow!("Miner account not found for authority {authority}")
+            })?;
+            let miner = Miner::try_from_bytes(&account.data)?;
+            miners.push(*miner);
+        }
+    }
+
+    Ok(miners)
+}
+
+/// Get all StakeV2 accounts
+pub async fn get_stakes_v2(rpc: &RpcClient) -> Result<Vec<(Pubkey, StakeV2)>> {
+    get_program_accounts::<StakeV2>(rpc, godl_api::ID, vec![]).await
+}
