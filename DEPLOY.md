@@ -118,13 +118,16 @@ solana program write-buffer "target/deploy/${LIBRARY_NAME}.so" \
 
 ### Step 4: Verify buffer integrity
 
-Verify the on-chain buffer matches the local build by comparing executable hashes.
+Verify the on-chain buffer matches the local build by comparing executable hashes. Wait a few seconds after the buffer write (Step 3) so the buffer account is fully settled on-chain before reading its hash.
 
 ```bash
 NETWORK_URL="https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}"
 
 # Hash of your locally built program
 solana-verify get-executable-hash "target/deploy/${LIBRARY_NAME}.so"
+
+# Give the buffer write time to settle on-chain before reading the buffer hash
+sleep 4
 
 # Hash of the on-chain buffer account
 solana-verify get-buffer-hash -u "$NETWORK_URL" "$BUFFER_ADDRESS"
@@ -148,7 +151,50 @@ solana program set-buffer-authority "$BUFFER_ADDRESS" \
 
 ---
 
-### Step 6: Create the multisig transactions in Squads
+### Step 6: Ensure the ProgramData account is large enough
+
+If the new binary is larger than the currently deployed one, the on-chain
+ProgramData account may be too small and the multisig upgrade will fail at
+execution with `account data too small for instruction` /
+`ProgramData account not large enough`. This step checks capacity and extends
+the account if needed — **before** the multisig transaction is created.
+
+The extend uses the permissionless `ExtendProgram` instruction, so it does **not**
+require the multisig authority; it is paid by your local CLI wallet (`KEYPAIR`),
+which must hold a little SOL for the additional rent (~0.007 SOL per extra 1 KB).
+
+```bash
+RPC="https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}" \
+KEYPAIR="$HOME/.config/solana/id.json" \
+CARGO_TARGET_DIR=/tmp/godl-cli-target \
+cargo run -p cli -- extend-program \
+  --so-path "target/deploy/${LIBRARY_NAME}.so" \
+  --headroom 8192 \
+  --max-sol 0.1 \
+  --yes
+```
+
+**Note**: `CARGO_TARGET_DIR=/tmp/godl-cli-target` builds the CLI in a separate
+directory because the `solana-verify build` in Step 1 runs in Docker as root and
+leaves `target/` root-owned, so a plain `cargo run` may fail to write
+`target/debug`. The `--so-path` still points at the verify build's output
+(`target/deploy/…`), which is read directly and is unaffected by `CARGO_TARGET_DIR`.
+
+**Expected output**: either `✓ No extension needed` (capacity already sufficient),
+or a printed rent cost followed by `✓ Extended. Signature: …`. The command is
+idempotent and safe to re-run.
+
+**If the rent cost exceeds `--max-sol`**: the command aborts without spending.
+Re-run with a higher `--max-sol` only after confirming the cost is acceptable.
+
+**Manual fallback** (only if mainnet ever disables permissionless extend and the
+command's simulation fails): build an `ExtendProgramChecked` instruction with the
+multisig authority as signer and submit it as a custom base58 transaction in
+Squads, alongside the upgrade.
+
+---
+
+### Step 7: Create the multisig transactions in Squads
 
 **Manual step required**: This step prints everything you need for both multisig operations at once — the program upgrade and the Solana Verify PDA transaction — so you can create them in a single Squads session.
 
@@ -160,13 +206,14 @@ REMOTE_URL=$(git remote get-url origin | sed 's/\.git$//' | sed 's|git@github.co
 BUFFER_REFUND="botHfLbBG8oSrohhfCF63xj3LhpBjJrYQkyE27gA4rN"
 UPGRADE_NAME="Upgrade ${LIBRARY_NAME} @ ${COMMIT_HASH:0:7}"
 
+# Strip all whitespace/newlines so the base58 tx is one continuous, copy-safe block
 PDA_TX=$(solana-verify export-pda-tx \
   "$GITHUB_REPO" \
   --library-name "$LIBRARY_NAME" \
   --program-id "$PROGRAM_ID" \
   --uploader "$MULTISIG_AUTHORITY" \
   --encoding base58 \
-  --compute-unit-price 0)
+  --compute-unit-price 0 | tr -d '[:space:]')
 
 cat <<EOF
 
@@ -177,13 +224,14 @@ cat <<EOF
   Buffer Refund  : ${BUFFER_REFUND}
   Commit Link    : ${REMOTE_URL}/commit/${COMMIT_HASH}
 
-============== 2) SOLANA-VERIFY PDA TX (base58) =============
-copy everything between the lines below
-
-------------------------------------------------------------
-${PDA_TX}
-------------------------------------------------------------
 EOF
+
+# Print the tx on its own line with no leading indentation so it stays a single clean block
+echo "============== 2) SOLANA-VERIFY PDA TX (base58) ============="
+echo "copy the single line below"
+echo "------------------------------------------------------------"
+printf '%s\n' "$PDA_TX"
+echo "------------------------------------------------------------"
 ```
 
 Then, in Squads (one session, two transactions):
@@ -197,7 +245,7 @@ Then, in Squads (one session, two transactions):
 
 ---
 
-### Step 7: Wait for multisig approval
+### Step 8: Wait for multisig approval
 
 **Manual step required**: All multisig signers must approve both transactions in Squads.
 
@@ -209,7 +257,7 @@ Then, in Squads (one session, two transactions):
 
 ---
 
-### Step 8: Cleanup temporary keypair
+### Step 9: Cleanup temporary keypair
 
 Once the deployment is fully complete, clean up the temporary keypair.
 
@@ -220,7 +268,7 @@ echo "Cleaned up temporary buffer keypair"
 
 ---
 
-### Step 9: Submit verification job
+### Step 10: Submit verification job
 
 Submit a verification job to confirm the on-chain program matches the GitHub source.
 
@@ -254,7 +302,8 @@ When executing this runbook:
 - **Step 0**: Fetch the deployed commit from the Solana Verify API using `$PROGRAM_ID`, present a clear summary of all changes, and use `AskUserQuestion` to confirm before proceeding
 - **Step 2**: Store `BUFFER_KEYPAIR` and `BUFFER_ADDRESS` for use in subsequent steps
 - **Step 4**: Compare the executable hash and the buffer hash; they must be identical. If they differ, stop and report the mismatch before proceeding
-- **Step 6**: Print both multisig outputs together — the Squads upgrade modal values (name, buffer address, buffer refund, commit link) and the base58 PDA verification transaction — so all multisig operations can be done in one Squads session. Both are created manually in Squads — do not automate them. Use `AskUserQuestion` to confirm both transactions have been created
-- **Step 7**: Use `AskUserQuestion` to prompt the user to confirm the multisig transactions have been fully executed
-- **Step 8**: Only run cleanup after user confirms deployment is complete
-- **Step 9**: Retry the verification job command until it succeeds (may fail due to rate limits or temporary issues)
+- **Step 6**: Run `godl extend-program` to size the ProgramData account to the freshly built `.so` before creating the Squads upgrade. The command is idempotent — `✓ No extension needed` means skip. If it extends, note the signature. This is permissionless and paid by the local `KEYPAIR` wallet, not the multisig
+- **Step 7**: Print both multisig outputs together — the Squads upgrade modal values (name, buffer address, buffer refund, commit link) and the base58 PDA verification transaction — so all multisig operations can be done in one Squads session. Both are created manually in Squads — do not automate them. Use `AskUserQuestion` to confirm both transactions have been created
+- **Step 8**: Use `AskUserQuestion` to prompt the user to confirm the multisig transactions have been fully executed
+- **Step 9**: Only run cleanup after user confirms deployment is complete
+- **Step 10**: Retry the verification job command until it succeeds (may fail due to rate limits or temporary issues)

@@ -208,6 +208,29 @@ enum Commands {
     Lut,
     TransferMintAuthority,
     SimulateTransferMintAuthority,
+    /// Ensure the ProgramData account is large enough for the built binary, extending if needed.
+    ExtendProgram {
+        #[arg(
+            long,
+            default_value = "target/deploy/godl.so",
+            help = "Path to the freshly built program binary"
+        )]
+        so_path: String,
+        #[arg(
+            long,
+            default_value_t = 8192,
+            help = "Extra bytes to add beyond the binary size"
+        )]
+        headroom: u64,
+        #[arg(
+            long,
+            default_value_t = 0.1,
+            help = "Hard spend cap on rent, in SOL"
+        )]
+        max_sol: f64,
+        #[arg(long, help = "Skip the confirmation prompt and execute")]
+        yes: bool,
+    },
 }
 
 fn build_jupiter_client(cli: &Cli) -> anyhow::Result<jupiter::JupiterClient> {
@@ -383,6 +406,25 @@ async fn main() -> Result<(), anyhow::Error> {
         }
         Commands::SimulateTransferMintAuthority => {
             simulate_transfer_mint_authority(&rpc, &payer).await?;
+        }
+        Commands::ExtendProgram {
+            so_path,
+            headroom,
+            max_sol,
+            yes,
+        } => {
+            extend_program(
+                &rpc,
+                &payer,
+                ExtendArgs {
+                    program_id: godl_api::ID,
+                    so_path,
+                    headroom,
+                    max_sol,
+                    yes,
+                },
+            )
+            .await?;
         }
     }
 
