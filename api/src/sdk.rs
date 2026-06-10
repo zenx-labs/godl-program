@@ -5,7 +5,7 @@ use steel::*;
 use crate::{
     consts::{
         ADMIN_GODL_FEE, BOARD, CHEST_ADDRESS, MINT_ADDRESS, MPL_CORE_PROGRAM, NFT_BOOST_COLLECTION,
-        OTC_ORACLE_SIGNER, SOL_MINT,
+        OTC_ORACLE_SIGNER, RUSH_SOL_VAULT, SOL_MINT,
     },
     instruction::*,
     state::*,
@@ -561,6 +561,7 @@ pub fn reset(
             AccountMeta::new(top_miner_address, false),
             AccountMeta::new(top_miner_pool_member_address, false),
             AccountMeta::new(sol_motherlode_address, false),
+            AccountMeta::new(RUSH_SOL_VAULT, false),
             AccountMeta::new(treasury_address, false),
             AccountMeta::new(treasury_tokens_address, false),
             AccountMeta::new_readonly(system_program::ID, false),
@@ -617,6 +618,7 @@ pub fn reset_permissionless(
             AccountMeta::new(top_miner_address, false),
             AccountMeta::new(top_miner_pool_member_address, false),
             AccountMeta::new(sol_motherlode_address, false),
+            AccountMeta::new(RUSH_SOL_VAULT, false),
             AccountMeta::new(treasury_address, false),
             AccountMeta::new(treasury_tokens_address, false),
             AccountMeta::new_readonly(system_program::ID, false),

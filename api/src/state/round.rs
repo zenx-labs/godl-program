@@ -98,8 +98,10 @@ impl Round {
         rng.reverse_bits() % 625 == 0
     }
 
-    pub fn did_hit_mini_motherlode(&self, rng: u64) -> bool {
-        rng.reverse_bits() % 325 == 0
+    pub fn did_hit_sol_motherlode(&self, rng: u64) -> bool {
+        // Same 1 in 625 odds as the main motherlode, but on a disjoint
+        // outcome so both can never hit in the same round.
+        rng.reverse_bits() % 625 == 1
     }
 }
 

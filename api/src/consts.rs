@@ -165,3 +165,6 @@ pub const STAKE_CURVE_EXPONENT: f64 = 1.0;
 
 /// OTC Oracle signer
 pub const OTC_ORACLE_SIGNER: Pubkey = pubkey!("otcSPJAKfmCgMmFkKUGk2kjwSQLSCHw5MJrJyouNFKt");
+
+/// Rush SOL vault
+pub const RUSH_SOL_VAULT: Pubkey = pubkey!("SoLt2Jgpqyt5memkregKW6daYFJ7xG2DAJTLSveeidY");

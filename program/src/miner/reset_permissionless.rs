@@ -25,10 +25,10 @@ const CRANK_REWARD_LAMPORTS: u64 = LAMPORTS_PER_SOL / 1000; // 0.001 SOL
 pub fn process_reset_permissionless(accounts: &[AccountInfo<'_>], _data: &[u8]) -> ProgramResult {
     // Load accounts.
     let clock = Clock::get()?;
-    let (godl_accounts, other_accounts) = accounts.split_at(17);
+    let (godl_accounts, other_accounts) = accounts.split_at(18);
     sol_log(&format!("Godl accounts: {:?}", godl_accounts.len()).to_string());
     sol_log(&format!("Other accounts: {:?}", other_accounts.len()).to_string());
-    let [signer_info, board_info, config_info, fee_collector_info, mint_info, round_info, round_next_info, pool_round_next_info, top_miner_info, top_miner_pool_member_info, sol_motherlode_info, treasury_info, treasury_tokens_info, system_program, token_program, godl_program, slot_hashes_sysvar] =
+    let [signer_info, board_info, config_info, fee_collector_info, mint_info, round_info, round_next_info, pool_round_next_info, top_miner_info, top_miner_pool_member_info, sol_motherlode_info, rush_sol_vault_info, treasury_info, treasury_tokens_info, system_program, token_program, godl_program, slot_hashes_sysvar] =
         godl_accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -57,6 +57,9 @@ pub fn process_reset_permissionless(accounts: &[AccountInfo<'_>], _data: &[u8]) 
         .is_writable()?
         .has_seeds(&[SOL_MOTHERLODE], &godl_api::ID)?
         .as_account_mut::<SolMotherlode>(&godl_api::ID)?;
+    rush_sol_vault_info
+        .is_writable()?
+        .has_address(&RUSH_SOL_VAULT)?;
     let treasury = treasury_info.as_account_mut::<Treasury>(&godl_api::ID)?;
     treasury_tokens_info.as_associated_token_account(&treasury_info.key, &mint_info.key)?;
     system_program.is_program(&system_program::ID)?;
@@ -293,21 +296,18 @@ pub fn process_reset_permissionless(accounts: &[AccountInfo<'_>], _data: &[u8]) 
         let rollover_amount = treasury.motherlode / 10;
         round.motherlode = treasury.motherlode - rollover_amount;
         treasury.motherlode = rollover_amount;
-
-        let sol_motherlode_payout = sol_motherlode.amount;
-        if sol_motherlode_payout > 0 {
-            round.total_winnings += sol_motherlode_payout;
-            sol_motherlode_info.send(sol_motherlode_payout, &round_info);
-            sol_motherlode.amount = 0;
-        }
     }
 
-    // Payout the mini motherlode if it was activated. (drops only SOL, no GODL)
-    if round.did_hit_mini_motherlode(r) {
+    // Payout the sol motherlode if it was activated. (drops only SOL, no GODL)
+    if round.did_hit_sol_motherlode(r) {
         let sol_motherlode_payout = sol_motherlode.amount;
         if sol_motherlode_payout > 0 {
-            round.total_winnings += sol_motherlode_payout;
-            sol_motherlode_info.send(sol_motherlode_payout, &round_info);
+            // 10% of the payout goes to the rush SOL vault, the remaining 90% to the round.
+            let rush_amount = sol_motherlode_payout / 10;
+            let round_amount = sol_motherlode_payout - rush_amount;
+            round.total_winnings += round_amount;
+            sol_motherlode_info.send(rush_amount, &rush_sol_vault_info);
+            sol_motherlode_info.send(round_amount, &round_info);
             sol_motherlode.amount = 0;
         }
     }
