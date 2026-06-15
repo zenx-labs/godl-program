@@ -190,6 +190,11 @@ enum Commands {
         amount: u64,
     },
     WithdrawSolOtc,
+    /// Reconcile phantom StakeV2 accounts from the PDA-substitution exploit (admin only).
+    ReconcilePhantomStakes {
+        #[arg(long, help = "Only report phantom accounts; do not send transactions")]
+        dry_run: bool,
+    },
     InitializeSolMotherlode,
     InjectGodlMotherlode {
         #[arg(long, help = "Amount of GODL to inject (decimal, e.g. 1.5)")]
@@ -378,6 +383,9 @@ async fn main() -> Result<(), anyhow::Error> {
         }
         Commands::SimulateWithdrawVault { amount } => {
             simulate_withdraw_vault(&rpc, &payer, amount).await?;
+        }
+        Commands::ReconcilePhantomStakes { dry_run } => {
+            reconcile_phantom_stakes(&rpc, &payer, dry_run).await?;
         }
         Commands::WithdrawSolOtc => {
             withdraw_sol_otc(&rpc, &payer).await?;

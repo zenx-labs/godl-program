@@ -165,6 +165,77 @@ pub async fn initialize_sol_motherlode(
     Ok(())
 }
 
+/// Reconcile phantom StakeV2 accounts created by the PDA-substitution exploit.
+///
+/// A legitimate stake account always lives at its canonical PDA,
+/// `stake_v2_pda(authority, id)`. Any StakeV2 whose address does not match that
+/// derivation was substituted by the exploit. For each, ReconcileStakeV2 clamps
+/// the recorded balance down to the GODL actually held in its vault and removes
+/// the freed phantom weight from treasury.total_staked. Pass `dry_run` to only
+/// report.
+pub async fn reconcile_phantom_stakes(
+    rpc: &RpcClient,
+    payer: &solana_sdk::signer::keypair::Keypair,
+    dry_run: bool,
+) -> Result<()> {
+    use crate::rpc::get_program_accounts;
+    use godl_api::state::{stake_v2_pda, StakeV2};
+
+    let stakes: Vec<(Pubkey, StakeV2)> =
+        get_program_accounts::<StakeV2>(rpc, godl_api::ID, vec![]).await?;
+    let total = stakes.len();
+
+    // A stake is phantom iff its address is not its canonical PDA.
+    let mut phantom: Vec<Pubkey> = Vec::new();
+    let mut phantom_weight: u128 = 0;
+    for (addr, s) in &stakes {
+        if *addr != stake_v2_pda(s.authority, s.id).0 {
+            phantom.push(*addr);
+            phantom_weight += s.weighted_units().unwrap_or(0) as u128;
+        }
+    }
+
+    println!(
+        "StakeV2 accounts: {} total, {} phantom (non-canonical PDA)",
+        total,
+        phantom.len()
+    );
+    println!(
+        "Phantom weight to remove from total_staked: {} GODL",
+        spl_token::amount_to_ui_amount(
+            phantom_weight.min(u64::MAX as u128) as u64,
+            godl_api::consts::TOKEN_DECIMALS
+        )
+    );
+
+    if dry_run {
+        for addr in &phantom {
+            println!("  {addr}");
+        }
+        println!("(dry run — no transactions sent)");
+        return Ok(());
+    }
+
+    const CHUNK: usize = 10;
+    let mut reconciled = 0usize;
+    let mut failed = 0usize;
+    for chunk in phantom.chunks(CHUNK) {
+        let ixs: Vec<_> = chunk
+            .iter()
+            .map(|addr| godl_api::sdk::reconcile_stake_v2(payer.pubkey(), *addr))
+            .collect();
+        match submit_transaction(rpc, payer, &ixs).await {
+            Ok(_) => reconciled += chunk.len(),
+            Err(e) => {
+                failed += chunk.len();
+                eprintln!("  batch failed ({} accounts): {e}", chunk.len());
+            }
+        }
+    }
+    println!("Reconciled {reconciled} phantom stake(s), {failed} failed");
+    Ok(())
+}
+
 /// Transfer GODL mint authority from the treasury PDA to the godl-mint
 /// program's authority PDA.
 pub async fn transfer_mint_authority(

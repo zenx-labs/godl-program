@@ -1,6 +1,6 @@
 use steel::*;
 
-// ENUM CURSOR: 52
+// ENUM CURSOR: 53
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, TryFromPrimitive)]
 pub enum GodlInstruction {
@@ -50,6 +50,7 @@ pub enum GodlInstruction {
     ClaimYieldV2 = 40,
     CompoundYieldV2 = 42,
     SetStakeExecutorV2 = 43,
+    ReconcileStakeV2 = 53,
 
     InjectGodlMotherlode = 44,
     StakeNft = 45,
@@ -258,6 +259,10 @@ pub struct SetStakeExecutorV2 {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct ReconcileStakeV2 {}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct Checkpoint {}
 
 #[repr(C)]
@@ -370,6 +375,7 @@ instruction!(GodlInstruction, WithdrawV2);
 instruction!(GodlInstruction, ClaimYieldV2);
 instruction!(GodlInstruction, CompoundYieldV2);
 instruction!(GodlInstruction, SetStakeExecutorV2);
+instruction!(GodlInstruction, ReconcileStakeV2);
 instruction!(GodlInstruction, NewVar);
 instruction!(GodlInstruction, SetMotherlodeDenominator);
 instruction!(GodlInstruction, SetSwapProgram);

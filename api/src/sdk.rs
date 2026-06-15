@@ -844,6 +844,26 @@ pub fn set_stake_executor_v2(signer: Pubkey, id: u64, executor: Pubkey) -> Instr
     }
 }
 
+// Admin reconciliation: the stake address is passed directly (phantom stakes
+// are not canonical PDAs and cannot be re-derived from authority + id).
+pub fn reconcile_stake_v2(signer: Pubkey, stake_address: Pubkey) -> Instruction {
+    let stake_tokens_address = get_associated_token_address(&stake_address, &MINT_ADDRESS);
+    let config_address = config_pda().0;
+    let treasury_address = treasury_pda().0;
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(signer, true),
+            AccountMeta::new_readonly(config_address, false),
+            AccountMeta::new(stake_address, false),
+            AccountMeta::new_readonly(stake_tokens_address, false),
+            AccountMeta::new_readonly(MINT_ADDRESS, false),
+            AccountMeta::new(treasury_address, false),
+        ],
+        data: ReconcileStakeV2 {}.to_bytes(),
+    }
+}
+
 pub fn compound_yield_v2(signer: Pubkey, authority: Pubkey, id: u64) -> Instruction {
     let stake_address = stake_v2_pda(authority, id).0;
     let stake_tokens_address = get_associated_token_address(&stake_address, &MINT_ADDRESS);

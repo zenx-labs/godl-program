@@ -62,6 +62,7 @@ pub fn process_instruction(
         GodlInstruction::ClaimYieldV2 => process_claim_yield_v2(accounts, data)?,
         GodlInstruction::CompoundYieldV2 => process_compound_yield_v2(accounts, data)?,
         GodlInstruction::SetStakeExecutorV2 => process_set_stake_executor_v2(accounts, data)?,
+        GodlInstruction::ReconcileStakeV2 => process_reconcile_stake_v2(accounts, data)?,
         GodlInstruction::StakeNft => process_stake_nft(accounts, data)?,
         GodlInstruction::UnstakeNft => process_unstake_nft(accounts, data)?,
 
