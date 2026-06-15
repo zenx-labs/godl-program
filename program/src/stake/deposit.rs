@@ -27,6 +27,8 @@ pub fn process_deposit(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResu
     token_program.is_program(&spl_token::ID)?;
     associated_token_program.is_program(&spl_associated_token_account::ID)?;
 
+    stake_info.has_seeds(&[STAKE, &signer_info.key.to_bytes()], &godl_api::ID)?;
+
     // Open stake account.
     let stake = if stake_info.data_is_empty() {
         create_program_account::<Stake>(

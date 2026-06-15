@@ -18,6 +18,11 @@ pub fn process_unstake_nft(accounts: &[AccountInfo<'_>], data: &[u8]) -> Program
     mpl_core_program.has_address(&MPL_CORE_PROGRAM)?;
     system_program.is_program(&system_program::ID)?;
 
+    stake_info.has_seeds(
+        &[STAKE_V2, &signer_info.key.to_bytes(), &id.to_le_bytes()],
+        &godl_api::ID,
+    )?;
+
     let stake = stake_info
         .as_account_mut::<StakeV2>(&godl_api::ID)?
         .assert_mut(|s| s.id == id)?

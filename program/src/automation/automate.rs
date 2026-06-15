@@ -20,7 +20,12 @@ pub fn process_automate(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramRes
         return Err(ProgramError::NotEnoughAccountKeys);
     };
     signer_info.is_signer()?;
-    automation_v2_info.is_writable()?;
+    automation_v2_info
+        .is_writable()?
+        .has_seeds(&[AUTOMATION_V2, &signer_info.key.to_bytes()], &godl_api::ID)?;
+    miner_info
+        .is_writable()?
+        .has_seeds(&[MINER, &signer_info.key.to_bytes()], &godl_api::ID)?;
     pool_member_info
         .is_writable()?
         .has_seeds(&[POOL_MEMBER, &signer_info.key.to_bytes()], &godl_api::ID)?;

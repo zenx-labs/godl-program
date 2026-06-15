@@ -57,6 +57,11 @@ pub fn process_deposit_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramR
         return Err(GodlError::StakeAlreadyExists.into());
     }
 
+    stake_info.has_seeds(
+        &[STAKE_V2, &signer_info.key.to_bytes(), &id.to_le_bytes()],
+        &godl_api::ID,
+    )?;
+
     // Create new stake account.
     create_program_account::<StakeV2>(
         stake_info,

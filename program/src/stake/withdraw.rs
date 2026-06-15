@@ -19,6 +19,7 @@ pub fn process_withdraw(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramRes
     signer_info.is_signer()?;
     mint_info.has_address(&MINT_ADDRESS)?.as_mint()?;
     recipient_info.is_writable()?;
+    stake_info.has_seeds(&[STAKE, &signer_info.key.to_bytes()], &godl_api::ID)?;
     let stake = stake_info
         .as_account_mut::<Stake>(&godl_api::ID)?
         .assert_mut(|s| s.authority == *signer_info.key)?;

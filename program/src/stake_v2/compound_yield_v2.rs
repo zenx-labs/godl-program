@@ -40,6 +40,13 @@ pub fn process_compound_yield_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> P
     if stake.authority != *signer_info.key && stake.executor != *signer_info.key {
         return Err(GodlError::NotAuthorized.into());
     }
+
+    let authority = stake.authority;
+    stake_info.has_seeds(
+        &[STAKE_V2, &authority.to_bytes(), &id.to_le_bytes()],
+        &godl_api::ID,
+    )?;
+
     stake_tokens_info.as_associated_token_account(stake_info.key, mint_info.key)?;
 
     // Validate treasury token account.
