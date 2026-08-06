@@ -54,6 +54,9 @@ pub fn process_compound_yield_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> P
         .is_writable()?
         .as_associated_token_account(&treasury_info.key, &mint_info.key)?;
 
+    // Auto-migrate to the sqrt weight curve on touch (no-op once version 1).
+    stake.migrate_weight(treasury)?;
+
     // Claim all pending rewards.
     let compounded = stake.claim(u64::MAX, &clock, treasury)?;
     if compounded == 0 {

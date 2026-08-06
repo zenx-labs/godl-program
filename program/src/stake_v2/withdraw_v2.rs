@@ -34,6 +34,9 @@ pub fn process_withdraw_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> Program
     token_program.is_program(&spl_token::ID)?;
     associated_token_program.is_program(&spl_associated_token_account::ID)?;
 
+    // Auto-migrate to the sqrt weight curve on touch (no-op once version 1).
+    stake.migrate_weight(treasury)?;
+
     let unlock_at = stake.created_at.saturating_add(stake.lock_duration.max(0));
 
     // Check if the stake is locked.

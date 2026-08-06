@@ -4,8 +4,11 @@ use bincode;
 use reqwest::Client;
 use serde_json::json;
 use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_client::rpc_client::RpcClient as BlockingRpcClient;
+use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_client::send_and_confirm_transactions_in_parallel::{
-    send_and_confirm_transactions_in_parallel, SendAndConfirmConfig,
+    send_and_confirm_transactions_in_parallel_blocking_v2 as parallel_blocking_v2,
+    SendAndConfirmConfigV2,
 };
 use solana_sdk::{
     address_lookup_table::{state::AddressLookupTable, AddressLookupTableAccount},
@@ -190,6 +193,62 @@ pub async fn submit_transaction_core(
     }
 }
 
+/// Simulate a transaction built the same way as [`submit_transaction_core`].
+pub async fn simulate_transaction_core(
+    rpc: &RpcClient,
+    payer: &solana_sdk::signer::keypair::Keypair,
+    instructions: &[Instruction],
+    compute_unit_limit: Option<u32>,
+    compute_unit_price: Option<u64>,
+) -> Result<()> {
+    let blockhash = rpc.get_latest_blockhash().await?;
+    let mut all_instructions = vec![];
+    if let Some(compute_unit_limit) = compute_unit_limit {
+        all_instructions.push(ComputeBudgetInstruction::set_compute_unit_limit(
+            compute_unit_limit,
+        ));
+    }
+    if let Some(compute_unit_price) = compute_unit_price {
+        all_instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
+            compute_unit_price,
+        ));
+    }
+
+    all_instructions.extend_from_slice(instructions);
+    let transaction = Transaction::new_signed_with_payer(
+        &all_instructions,
+        Some(&payer.pubkey()),
+        &[payer],
+        blockhash,
+    );
+
+    let result = rpc.simulate_transaction(&transaction).await?;
+
+    println!("Simulation result:");
+    println!("  Success: {}", result.value.err.is_none());
+
+    if let Some(err) = &result.value.err {
+        println!("  Error: {:?}", err);
+    }
+
+    if let Some(logs) = &result.value.logs {
+        println!("  Logs:");
+        for log in logs {
+            println!("    {}", log);
+        }
+    }
+
+    if let Some(units_consumed) = result.value.units_consumed {
+        println!("  Compute units consumed: {}", units_consumed);
+    }
+
+    if let Some(err) = result.value.err {
+        return Err(anyhow!("Simulation failed: {:?}", err));
+    }
+
+    Ok(())
+}
+
 /// Submit a transaction with compute budget instructions
 pub async fn submit_transaction(
     rpc: &RpcClient,
@@ -257,6 +316,76 @@ pub async fn get_address_lookup_table_accounts(
     Ok(accounts)
 }
 
+/// Simulate a transaction built the same way as [`submit_transaction_sender`].
+pub async fn simulate_transaction_sender(
+    rpc: &RpcClient,
+    payer: &solana_sdk::signer::keypair::Keypair,
+    instructions: &[Instruction],
+    compute_unit_limit: Option<u32>,
+    compute_unit_price: Option<u64>,
+    swqos_only: bool,
+) -> Result<()> {
+    let blockhash = rpc.get_latest_blockhash().await?;
+
+    let mut all_instructions = vec![];
+    if let Some(compute_unit_limit) = compute_unit_limit {
+        all_instructions.push(ComputeBudgetInstruction::set_compute_unit_limit(
+            compute_unit_limit,
+        ));
+    }
+    if let Some(compute_unit_price) = compute_unit_price {
+        all_instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
+            compute_unit_price,
+        ));
+    }
+    all_instructions.extend_from_slice(instructions);
+
+    let tip_lamports = if swqos_only {
+        SWQOS_TIP_LAMPORTS
+    } else {
+        JITO_TIP_LAMPORTS
+    };
+    let tip_account = TIP_ACCOUNTS[4];
+    all_instructions.push(system_instruction::transfer(
+        &payer.pubkey(),
+        &tip_account,
+        tip_lamports,
+    ));
+
+    let transaction = Transaction::new_signed_with_payer(
+        &all_instructions,
+        Some(&payer.pubkey()),
+        &[payer],
+        blockhash,
+    );
+
+    let result = rpc.simulate_transaction(&transaction).await?;
+
+    println!("Simulation result:");
+    println!("  Success: {}", result.value.err.is_none());
+
+    if let Some(err) = &result.value.err {
+        println!("  Error: {:?}", err);
+    }
+
+    if let Some(logs) = &result.value.logs {
+        println!("  Logs:");
+        for log in logs {
+            println!("    {}", log);
+        }
+    }
+
+    if let Some(units_consumed) = result.value.units_consumed {
+        println!("  Compute units consumed: {}", units_consumed);
+    }
+
+    if let Some(err) = result.value.err {
+        return Err(anyhow!("Simulation failed: {:?}", err));
+    }
+
+    Ok(())
+}
+
 /// Simulate a transaction and return the result
 pub async fn simulate_transaction(
     rpc: &RpcClient,
@@ -305,7 +434,10 @@ pub async fn send_and_confirm_transactions_in_parallel_blocking_v2(
     payer: &solana_sdk::signer::keypair::Keypair,
     instruction_batches: Vec<Vec<Instruction>>,
 ) -> Result<Vec<Option<TransactionError>>> {
-    let parallel_rpc = Arc::new(RpcClient::new_with_commitment(rpc.url(), rpc.commitment()));
+    let blocking_rpc = Arc::new(BlockingRpcClient::new_with_commitment(
+        rpc.url(),
+        rpc.commitment(),
+    ));
 
     let messages = instruction_batches
         .iter()
@@ -313,14 +445,16 @@ pub async fn send_and_confirm_transactions_in_parallel_blocking_v2(
         .collect::<Vec<_>>();
 
     let signers: [&solana_sdk::signer::keypair::Keypair; 1] = [payer];
-    let config = SendAndConfirmConfig {
+    let config = SendAndConfirmConfigV2 {
         with_spinner: true,
-        resign_txs_count: None,
+        // Long same-account sweeps (reconcile, migrate) serialize on the
+        // treasury write lock; queued transactions can outlive their
+        // blockhash, so allow re-signing instead of failing the batch.
+        resign_txs_count: Some(10),
+        rpc_send_transaction_config: RpcSendTransactionConfig::default(),
     };
 
-    let results =
-        send_and_confirm_transactions_in_parallel(parallel_rpc, None, &messages, &signers, config)
-            .await?;
+    let results = parallel_blocking_v2(blocking_rpc, None, &messages, &signers, config)?;
 
     Ok(results)
 }

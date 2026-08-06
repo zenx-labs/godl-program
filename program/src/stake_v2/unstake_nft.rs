@@ -29,6 +29,10 @@ pub fn process_unstake_nft(accounts: &[AccountInfo<'_>], data: &[u8]) -> Program
         .assert_mut(|s| s.authority == *signer_info.key)?;
 
     let treasury = treasury_info.as_account_mut::<Treasury>(&godl_api::ID)?;
+
+    // Auto-migrate to the sqrt weight curve on touch (no-op once version 1).
+    stake.migrate_weight(treasury)?;
+
     stake.unstake_nft(treasury)?;
 
     let (_, bump) = stake_v2_pda(*signer_info.key, id);

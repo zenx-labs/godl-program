@@ -63,6 +63,7 @@ pub fn process_instruction(
         GodlInstruction::CompoundYieldV2 => process_compound_yield_v2(accounts, data)?,
         GodlInstruction::SetStakeExecutorV2 => process_set_stake_executor_v2(accounts, data)?,
         GodlInstruction::ReconcileStakeV2 => process_reconcile_stake_v2(accounts, data)?,
+        GodlInstruction::MigrateStakeWeight => process_migrate_stake_weight(accounts, data)?,
         GodlInstruction::StakeNft => process_stake_nft(accounts, data)?,
         GodlInstruction::UnstakeNft => process_unstake_nft(accounts, data)?,
 
@@ -84,6 +85,7 @@ pub fn process_instruction(
             process_initialize_sol_motherlode(accounts, data)?
         }
         GodlInstruction::InjectGodlMotherlode => process_inject_godl_motherlode(accounts, data)?,
+        GodlInstruction::RebaseTotalStaked => process_rebase_total_staked(accounts, data)?,
 
         // OTC
         GodlInstruction::InitializeOtcTreasury => process_initialize_otc_treasury(accounts, data)?,

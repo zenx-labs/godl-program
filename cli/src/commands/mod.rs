@@ -7,6 +7,7 @@ mod info;
 mod lookup_table;
 mod mining;
 mod referral;
+mod stake_weight;
 mod swap;
 
 pub use admin::*;
@@ -18,4 +19,5 @@ pub use info::*;
 pub use lookup_table::*;
 pub use mining::*;
 pub use referral::*;
+pub use stake_weight::*;
 pub use swap::*;

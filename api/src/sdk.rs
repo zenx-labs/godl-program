@@ -864,6 +864,41 @@ pub fn reconcile_stake_v2(signer: Pubkey, stake_address: Pubkey) -> Instruction 
     }
 }
 
+// Permissionless sqrt-weight migration: the stake address is passed directly
+// (exploit-era on-curve stakes are not canonical PDAs and cannot be re-derived
+// from authority + id), mirroring `reconcile_stake_v2`.
+pub fn migrate_stake_weight(signer: Pubkey, stake_address: Pubkey) -> Instruction {
+    let treasury_address = treasury_pda().0;
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(signer, true),
+            AccountMeta::new(stake_address, false),
+            AccountMeta::new(treasury_address, false),
+        ],
+        data: MigrateStakeWeight {}.to_bytes(),
+    }
+}
+
+// Admin verification backstop: compare-and-swap on treasury.total_staked.
+pub fn rebase_total_staked(signer: Pubkey, expected: u64, new_value: u64) -> Instruction {
+    let config_address = config_pda().0;
+    let treasury_address = treasury_pda().0;
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(signer, true),
+            AccountMeta::new_readonly(config_address, false),
+            AccountMeta::new(treasury_address, false),
+        ],
+        data: RebaseTotalStaked {
+            expected: expected.to_le_bytes(),
+            new_value: new_value.to_le_bytes(),
+        }
+        .to_bytes(),
+    }
+}
+
 pub fn compound_yield_v2(signer: Pubkey, authority: Pubkey, id: u64) -> Instruction {
     let stake_address = stake_v2_pda(authority, id).0;
     let stake_tokens_address = get_associated_token_address(&stake_address, &MINT_ADDRESS);

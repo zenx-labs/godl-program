@@ -191,7 +191,9 @@ pub fn process_execute_otc_trade(accounts: &[AccountInfo<'_>], data: &[u8]) -> P
     stake.executor = *buyer_info.key;
     stake.created_at = clock.unix_timestamp;
     stake.is_nft_staked = 0;
-    stake.buffer = [0; 31];
+    // New stakes are born on the sqrt weight curve.
+    stake.weight_version = 1;
+    stake.buffer = [0; 30];
 
     // Settle rewards before any balance change.
     stake.update_rewards(treasury)?;

@@ -29,6 +29,10 @@ pub fn process_stake_nft(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramRe
         .assert_mut(|s| s.authority == *signer_info.key)?;
 
     let treasury = treasury_info.as_account_mut::<Treasury>(&godl_api::ID)?;
+
+    // Auto-migrate to the sqrt weight curve on touch (no-op once version 1).
+    stake.migrate_weight(treasury)?;
+
     stake.stake_nft(treasury)?;
 
     TransferV1CpiBuilder::new(mpl_core_program)

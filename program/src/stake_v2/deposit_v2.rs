@@ -85,7 +85,9 @@ pub fn process_deposit_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramR
     stake.executor = *executor_info.key;
     stake.created_at = clock.unix_timestamp;
     stake.is_nft_staked = 0;
-    stake.buffer = [0; 31];
+    // New stakes are born on the sqrt weight curve.
+    stake.weight_version = 1;
+    stake.buffer = [0; 30];
 
     // Settle rewards with the current multiplier before any changes.
     stake.update_rewards(treasury)?;

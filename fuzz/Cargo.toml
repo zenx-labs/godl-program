@@ -1,0 +1,37 @@
+[package]
+name = "godl-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+godl-api = { path = "../api" }
+steel = { features = ["spl"], version = "4.0.3" }
+spl-token = { version = "^4", features = ["no-entrypoint"] }
+
+[[bin]]
+name = "instruction_parsing"
+path = "fuzz_targets/instruction_parsing.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "op_sequence"
+path = "fuzz_targets/op_sequence.rs"
+test = false
+doc = false
+bench = false
+
+# Standalone crate: keep it out of the parent workspace (nightly-only build).
+[workspace]
+
+# Match the program's overflow posture so the fuzzer sees the same arithmetic
+# behavior as the deployed binary.
+[profile.release]
+overflow-checks = true
+debug = 1

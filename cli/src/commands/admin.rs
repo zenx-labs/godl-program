@@ -217,19 +217,29 @@ pub async fn reconcile_phantom_stakes(
     }
 
     const CHUNK: usize = 10;
+    let sizes: Vec<usize> = phantom.chunks(CHUNK).map(|c| c.len()).collect();
+    let batches: Vec<Vec<solana_sdk::instruction::Instruction>> = phantom
+        .chunks(CHUNK)
+        .map(|chunk| {
+            chunk
+                .iter()
+                .map(|addr| godl_api::sdk::reconcile_stake_v2(payer.pubkey(), *addr))
+                .collect()
+        })
+        .collect();
+
+    let results = crate::transaction::send_and_confirm_transactions_in_parallel_blocking_v2(
+        rpc, payer, batches,
+    )
+    .await?;
+
     let mut reconciled = 0usize;
     let mut failed = 0usize;
-    for chunk in phantom.chunks(CHUNK) {
-        let ixs: Vec<_> = chunk
-            .iter()
-            .map(|addr| godl_api::sdk::reconcile_stake_v2(payer.pubkey(), *addr))
-            .collect();
-        match submit_transaction(rpc, payer, &ixs).await {
-            Ok(_) => reconciled += chunk.len(),
-            Err(e) => {
-                failed += chunk.len();
-                eprintln!("  batch failed ({} accounts): {e}", chunk.len());
-            }
+    for (size, res) in sizes.iter().zip(results.iter()) {
+        if res.is_none() {
+            reconciled += size;
+        } else {
+            failed += size;
         }
     }
     println!("Reconciled {reconciled} phantom stake(s), {failed} failed");

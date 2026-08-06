@@ -1,6 +1,6 @@
 use steel::*;
 
-// ENUM CURSOR: 53
+// ENUM CURSOR: 58
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, TryFromPrimitive)]
 pub enum GodlInstruction {
@@ -66,6 +66,10 @@ pub enum GodlInstruction {
     ResetPermissionless = 51,
 
     TransferMintAuthority = 52,
+
+    // Stake weight reweight (sqrt curve).
+    MigrateStakeWeight = 54,
+    RebaseTotalStaked = 55,
 }
 
 #[repr(C)]
@@ -348,6 +352,17 @@ pub struct WithdrawSolOtc {}
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct TransferMintAuthority {}
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct MigrateStakeWeight {}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct RebaseTotalStaked {
+    pub expected: [u8; 8],
+    pub new_value: [u8; 8],
+}
+
 instruction!(GodlInstruction, Automate);
 instruction!(GodlInstruction, Initialize);
 instruction!(GodlInstruction, Close);
@@ -393,3 +408,5 @@ instruction!(GodlInstruction, FundGodlOtc);
 instruction!(GodlInstruction, ExecuteOtcTrade);
 instruction!(GodlInstruction, WithdrawSolOtc);
 instruction!(GodlInstruction, TransferMintAuthority);
+instruction!(GodlInstruction, MigrateStakeWeight);
+instruction!(GodlInstruction, RebaseTotalStaked);

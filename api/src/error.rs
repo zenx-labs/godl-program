@@ -47,6 +47,9 @@ pub enum GodlError {
 
     #[error("OTC quote has expired")]
     OtcQuoteExpired = 14,
+
+    #[error("Total staked does not match the expected value")]
+    RebaseMismatch = 15,
 }
 
 error!(GodlError);

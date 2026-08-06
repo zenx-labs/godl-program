@@ -195,6 +195,18 @@ enum Commands {
         #[arg(long, help = "Only report phantom accounts; do not send transactions")]
         dry_run: bool,
     },
+    /// Migrate all StakeV2 accounts to the sqrt weight curve (permissionless crank).
+    MigrateStakes {
+        #[arg(long, help = "Only report unmigrated accounts; do not send transactions")]
+        dry_run: bool,
+    },
+    /// Recompute the true stake weight sum and compare to treasury.total_staked (read-only).
+    VerifyStakeWeights,
+    /// CAS treasury.total_staked to the recomputed true sum (admin only; post-sweep backstop).
+    RebaseTotalStaked {
+        #[arg(long, help = "Only print expected/new values; do not send a transaction")]
+        dry_run: bool,
+    },
     InitializeSolMotherlode,
     InjectGodlMotherlode {
         #[arg(long, help = "Amount of GODL to inject (decimal, e.g. 1.5)")]
@@ -386,6 +398,15 @@ async fn main() -> Result<(), anyhow::Error> {
         }
         Commands::ReconcilePhantomStakes { dry_run } => {
             reconcile_phantom_stakes(&rpc, &payer, dry_run).await?;
+        }
+        Commands::MigrateStakes { dry_run } => {
+            migrate_stakes(&rpc, &payer, dry_run).await?;
+        }
+        Commands::VerifyStakeWeights => {
+            verify_stake_weights(&rpc).await?;
+        }
+        Commands::RebaseTotalStaked { dry_run } => {
+            rebase_total_staked(&rpc, &payer, dry_run).await?;
         }
         Commands::WithdrawSolOtc => {
             withdraw_sol_otc(&rpc, &payer).await?;
