@@ -570,6 +570,48 @@ async fn topup_rejects_zero_amount_and_wrong_authority() {
     assert_invariant(&mut ctx, &[stake_addr]).await;
 }
 
+#[tokio::test]
+async fn topup_zero_effective_deposit_cannot_relock() {
+    // deposit() clamps to the sender's token balance; an empty wallet must NOT
+    // buy a lock restart with a zero-effective deposit.
+    let user = Keypair::new();
+    let admin = Keypair::new();
+    // Expired 2-year lock — currently withdrawable; a created_at reset would
+    // freeze the whole balance for 2 more years.
+    let s = spec(user.pubkey(), 13, 100 * GODL, 20 * SCALE, false, 1)
+        .with_lock(0, MAX_LOCK_DURATION);
+    let stake_addr = s.address();
+
+    let mut ctx = EnvBuilder::new(admin.pubkey())
+        .stake(s)
+        .token(user.pubkey(), 0) // sender ATA exists but is empty
+        .start()
+        .await;
+
+    assert_custom_err(
+        send(
+            &mut ctx,
+            &[&user],
+            &[godl_api::sdk::top_up_stake_v2(user.pubkey(), 13, 50 * GODL)],
+        )
+        .await,
+        0, // GodlError::AmountTooSmall — clamped-to-zero deposit rejected
+    );
+
+    // Nothing changed and the stake is still withdrawable.
+    let stake: StakeV2 = get(&mut ctx, stake_addr).await;
+    assert_eq!(stake.balance, 100 * GODL);
+    assert_eq!(stake.created_at, 0, "lock clock must not restart");
+    send(
+        &mut ctx,
+        &[&user],
+        &[ix_withdraw_v2(user.pubkey(), 13, 10 * GODL)],
+    )
+    .await
+    .expect("expired stake must remain withdrawable after the failed top-up");
+    assert_invariant(&mut ctx, &[stake_addr]).await;
+}
+
 // ---------------------------------------------------------------------------
 // MergeStakeV2
 // ---------------------------------------------------------------------------
@@ -700,6 +742,46 @@ async fn merge_auto_migrates_v0_inputs_and_sweeps_dust() {
     assert_eq!(
         get::<Treasury>(&mut ctx, treasury_pda().0).await.total_staked,
         150 * GODL
+    );
+    assert_invariant(&mut ctx, &[target.address()]).await;
+}
+
+#[tokio::test]
+async fn merge_tolerates_missing_source_vault() {
+    // A balance-0 source whose vault was drained and closed (the shape
+    // close_stake_v2 tolerates) must still be mergeable so its pending rewards
+    // fold into the target instead of forcing a wallet payout.
+    let user = Keypair::new();
+    let admin = Keypair::new();
+    let rewards = 4 * GODL;
+    let target = spec(user.pubkey(), 0, 100 * GODL, SCALE, false, 1);
+    let source = spec(user.pubkey(), 1, 0, SCALE, false, 1)
+        .with_rewards(rewards)
+        .without_vault();
+    let target_vault = get_associated_token_address(&target.address(), &MINT_ADDRESS);
+
+    let mut ctx = EnvBuilder::new(admin.pubkey())
+        .stake(target)
+        .stake(source)
+        .start()
+        .await;
+
+    send(
+        &mut ctx,
+        &[&user],
+        &[godl_api::sdk::merge_stake_v2(user.pubkey(), 0, 1)],
+    )
+    .await
+    .unwrap();
+
+    let merged: StakeV2 = get(&mut ctx, target.address()).await;
+    assert_eq!(merged.balance, 100 * GODL, "nothing to move from the source");
+    assert_eq!(merged.rewards, rewards, "source rewards folded into target");
+    assert!(!account_exists(&mut ctx, source.address()).await);
+    assert_eq!(token_balance(&mut ctx, target_vault).await, 100 * GODL);
+    assert_eq!(
+        get::<Treasury>(&mut ctx, treasury_pda().0).await.total_staked,
+        100 * GODL
     );
     assert_invariant(&mut ctx, &[target.address()]).await;
 }

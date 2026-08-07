@@ -73,6 +73,13 @@ pub fn process_top_up_stake_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> Pro
     // adds the exact weighted delta to treasury.total_staked).
     let amount = stake.deposit(amount, &clock, treasury, &sender)?;
 
+    // deposit() clamps to the sender's token balance; a zero-effective top-up
+    // must fail rather than restart the lock below (which would re-lock the
+    // entire existing balance in exchange for depositing nothing).
+    if amount == 0 {
+        return Err(GodlError::AmountTooSmall.into());
+    }
+
     // Restart the lock: the whole balance is committed for the full
     // lock_duration from now (a no-op for never-locked accounts).
     stake.created_at = clock.unix_timestamp;
