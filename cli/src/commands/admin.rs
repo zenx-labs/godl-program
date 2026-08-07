@@ -246,6 +246,96 @@ pub async fn reconcile_phantom_stakes(
     Ok(())
 }
 
+/// Close phantom StakeV2 accounts (admin only), forfeiting their rewards and
+/// sweeping the rent into the treasury.
+///
+/// Only non-canonical (exploit-era) accounts with a zero balance qualify: the
+/// on-chain handler rejects canonical accounts (their owners close them via
+/// CloseStakeV2) and non-empty ones (run `reconcile-phantom-stakes` first).
+/// Pass `dry_run` to only report.
+pub async fn close_phantom_stakes(
+    rpc: &RpcClient,
+    payer: &solana_sdk::signer::keypair::Keypair,
+    dry_run: bool,
+) -> Result<()> {
+    use crate::rpc::get_program_accounts;
+    use godl_api::state::{stake_v2_pda, StakeV2};
+
+    let stakes: Vec<(Pubkey, StakeV2)> =
+        get_program_accounts::<StakeV2>(rpc, godl_api::ID, vec![]).await?;
+    let total = stakes.len();
+
+    // A stake is phantom iff its address is not its canonical PDA. Only empty
+    // ones are closable; the rest need a reconcile pass first.
+    let mut closable: Vec<Pubkey> = Vec::new();
+    let mut needs_reconcile: Vec<Pubkey> = Vec::new();
+    let mut forfeited_rewards: u128 = 0;
+    for (addr, s) in &stakes {
+        if *addr != stake_v2_pda(s.authority, s.id).0 {
+            if s.balance == 0 {
+                closable.push(*addr);
+                forfeited_rewards += s.rewards as u128;
+            } else {
+                needs_reconcile.push(*addr);
+            }
+        }
+    }
+
+    println!(
+        "StakeV2 accounts: {} total, {} phantom closable, {} phantom still funded (reconcile first)",
+        total,
+        closable.len(),
+        needs_reconcile.len()
+    );
+    println!(
+        "Rewards to forfeit: {} GODL",
+        spl_token::amount_to_ui_amount(
+            forfeited_rewards.min(u64::MAX as u128) as u64,
+            godl_api::consts::TOKEN_DECIMALS
+        )
+    );
+    for addr in &needs_reconcile {
+        println!("  skipped (non-zero balance): {addr}");
+    }
+
+    if dry_run {
+        for addr in &closable {
+            println!("  {addr}");
+        }
+        println!("(dry run — no transactions sent)");
+        return Ok(());
+    }
+
+    const CHUNK: usize = 10;
+    let sizes: Vec<usize> = closable.chunks(CHUNK).map(|c| c.len()).collect();
+    let batches: Vec<Vec<solana_sdk::instruction::Instruction>> = closable
+        .chunks(CHUNK)
+        .map(|chunk| {
+            chunk
+                .iter()
+                .map(|addr| godl_api::sdk::close_phantom_stake_v2(payer.pubkey(), *addr))
+                .collect()
+        })
+        .collect();
+
+    let results = crate::transaction::send_and_confirm_transactions_in_parallel_blocking_v2(
+        rpc, payer, batches,
+    )
+    .await?;
+
+    let mut closed = 0usize;
+    let mut failed = 0usize;
+    for (size, res) in sizes.iter().zip(results.iter()) {
+        if res.is_none() {
+            closed += size;
+        } else {
+            failed += size;
+        }
+    }
+    println!("Closed {closed} phantom stake(s), {failed} failed");
+    Ok(())
+}
+
 /// Transfer GODL mint authority from the treasury PDA to the godl-mint
 /// program's authority PDA.
 pub async fn transfer_mint_authority(

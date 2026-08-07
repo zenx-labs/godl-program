@@ -64,6 +64,10 @@ pub fn process_instruction(
         GodlInstruction::SetStakeExecutorV2 => process_set_stake_executor_v2(accounts, data)?,
         GodlInstruction::ReconcileStakeV2 => process_reconcile_stake_v2(accounts, data)?,
         GodlInstruction::MigrateStakeWeight => process_migrate_stake_weight(accounts, data)?,
+        GodlInstruction::CloseStakeV2 => process_close_stake_v2(accounts, data)?,
+        GodlInstruction::ClosePhantomStakeV2 => process_close_phantom_stake_v2(accounts, data)?,
+        GodlInstruction::TopUpStakeV2 => process_top_up_stake_v2(accounts, data)?,
+        GodlInstruction::MergeStakeV2 => process_merge_stake_v2(accounts, data)?,
         GodlInstruction::StakeNft => process_stake_nft(accounts, data)?,
         GodlInstruction::UnstakeNft => process_unstake_nft(accounts, data)?,
 

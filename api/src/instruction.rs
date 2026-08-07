@@ -1,6 +1,6 @@
 use steel::*;
 
-// ENUM CURSOR: 58
+// ENUM CURSOR: 59
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, TryFromPrimitive)]
 pub enum GodlInstruction {
@@ -70,6 +70,12 @@ pub enum GodlInstruction {
     // Stake weight reweight (sqrt curve).
     MigrateStakeWeight = 54,
     RebaseTotalStaked = 55,
+
+    // Stake V2 lifecycle.
+    CloseStakeV2 = 56,
+    ClosePhantomStakeV2 = 57,
+    TopUpStakeV2 = 58,
+    MergeStakeV2 = 59,
 }
 
 #[repr(C)]
@@ -363,6 +369,31 @@ pub struct RebaseTotalStaked {
     pub new_value: [u8; 8],
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct CloseStakeV2 {
+    pub id: [u8; 8],
+}
+
+// The stake address is passed directly (like ReconcileStakeV2), so no args.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct ClosePhantomStakeV2 {}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct TopUpStakeV2 {
+    pub id: [u8; 8],
+    pub amount: [u8; 8],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct MergeStakeV2 {
+    pub target_id: [u8; 8],
+    pub source_id: [u8; 8],
+}
+
 instruction!(GodlInstruction, Automate);
 instruction!(GodlInstruction, Initialize);
 instruction!(GodlInstruction, Close);
@@ -410,3 +441,7 @@ instruction!(GodlInstruction, WithdrawSolOtc);
 instruction!(GodlInstruction, TransferMintAuthority);
 instruction!(GodlInstruction, MigrateStakeWeight);
 instruction!(GodlInstruction, RebaseTotalStaked);
+instruction!(GodlInstruction, CloseStakeV2);
+instruction!(GodlInstruction, ClosePhantomStakeV2);
+instruction!(GodlInstruction, TopUpStakeV2);
+instruction!(GodlInstruction, MergeStakeV2);

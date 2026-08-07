@@ -50,6 +50,15 @@ pub enum GodlError {
 
     #[error("Total staked does not match the expected value")]
     RebaseMismatch = 15,
+
+    #[error("Stake balance must be zero to close")]
+    StakeNotEmpty = 16,
+
+    #[error("Stake account is canonical, not a phantom")]
+    StakeNotPhantom = 17,
+
+    #[error("Cannot merge a stake account with itself")]
+    MergeSameStake = 18,
 }
 
 error!(GodlError);

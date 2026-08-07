@@ -926,6 +926,118 @@ pub fn compound_yield_v2(signer: Pubkey, authority: Pubkey, id: u64) -> Instruct
     }
 }
 
+// Closes an empty (balance-0, no NFT) stake account: pays out pending rewards
+// and any residual vault tokens to the signer's ATA, then returns the vault and
+// account rent to the signer. The treasury is read-only (closing a balance-0
+// stake never moves total_staked).
+pub fn close_stake_v2(signer: Pubkey, id: u64) -> Instruction {
+    let recipient_address = get_associated_token_address(&signer, &MINT_ADDRESS);
+    let stake_address = stake_v2_pda(signer, id).0;
+    let stake_tokens_address = get_associated_token_address(&stake_address, &MINT_ADDRESS);
+    let treasury_address = treasury_pda().0;
+    let treasury_tokens_address = treasury_tokens_address(treasury_address);
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(signer, true),
+            AccountMeta::new_readonly(MINT_ADDRESS, false),
+            AccountMeta::new(recipient_address, false),
+            AccountMeta::new(stake_address, false),
+            AccountMeta::new(stake_tokens_address, false),
+            AccountMeta::new_readonly(treasury_address, false),
+            AccountMeta::new(treasury_tokens_address, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(spl_associated_token_account::ID, false),
+        ],
+        data: CloseStakeV2 {
+            id: id.to_le_bytes(),
+        }
+        .to_bytes(),
+    }
+}
+
+// Admin sweep of exploit-era phantom stakes: the stake address is passed
+// directly (phantom stakes are not canonical PDAs and cannot be re-derived from
+// authority + id), mirroring `reconcile_stake_v2`. Pending rewards are
+// forfeited and the account rent is swept into the treasury.
+pub fn close_phantom_stake_v2(signer: Pubkey, stake_address: Pubkey) -> Instruction {
+    let config_address = config_pda().0;
+    let treasury_address = treasury_pda().0;
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(signer, true),
+            AccountMeta::new_readonly(config_address, false),
+            AccountMeta::new(stake_address, false),
+            AccountMeta::new(treasury_address, false),
+        ],
+        data: ClosePhantomStakeV2 {}.to_bytes(),
+    }
+}
+
+// Deposits additional GODL into an existing stake account. RESTARTS the lock:
+// `created_at` is reset to now, so the whole balance is locked for the full
+// `lock_duration` again — the fresh-deposit-equivalent terms that justify the
+// stored multiplier on the new capital.
+pub fn top_up_stake_v2(signer: Pubkey, id: u64, amount: u64) -> Instruction {
+    let sender_address = get_associated_token_address(&signer, &MINT_ADDRESS);
+    let stake_address = stake_v2_pda(signer, id).0;
+    let stake_tokens_address = get_associated_token_address(&stake_address, &MINT_ADDRESS);
+    let treasury_address = treasury_pda().0;
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(signer, true),
+            AccountMeta::new_readonly(MINT_ADDRESS, false),
+            AccountMeta::new(sender_address, false),
+            AccountMeta::new(stake_address, false),
+            AccountMeta::new(stake_tokens_address, false),
+            AccountMeta::new(treasury_address, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(spl_associated_token_account::ID, false),
+        ],
+        data: TopUpStakeV2 {
+            id: id.to_le_bytes(),
+            amount: amount.to_le_bytes(),
+        }
+        .to_bytes(),
+    }
+}
+
+// Merges the source stake account into the target (same authority, no NFT on
+// either) and closes the source. The merged account takes the LONGER
+// `lock_duration` of the two with `created_at` reset to now — the lock
+// restarts, so the recomputed multiplier is fresh-deposit-equivalent.
+pub fn merge_stake_v2(signer: Pubkey, target_id: u64, source_id: u64) -> Instruction {
+    let target_address = stake_v2_pda(signer, target_id).0;
+    let target_tokens_address = get_associated_token_address(&target_address, &MINT_ADDRESS);
+    let source_address = stake_v2_pda(signer, source_id).0;
+    let source_tokens_address = get_associated_token_address(&source_address, &MINT_ADDRESS);
+    let treasury_address = treasury_pda().0;
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(signer, true),
+            AccountMeta::new_readonly(MINT_ADDRESS, false),
+            AccountMeta::new(target_address, false),
+            AccountMeta::new(target_tokens_address, false),
+            AccountMeta::new(source_address, false),
+            AccountMeta::new(source_tokens_address, false),
+            AccountMeta::new(treasury_address, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(spl_associated_token_account::ID, false),
+        ],
+        data: MergeStakeV2 {
+            target_id: target_id.to_le_bytes(),
+            source_id: source_id.to_le_bytes(),
+        }
+        .to_bytes(),
+    }
+}
+
 pub fn new_var(
     signer: Pubkey,
     provider: Pubkey,

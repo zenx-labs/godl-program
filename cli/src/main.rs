@@ -207,6 +207,30 @@ enum Commands {
         #[arg(long, help = "Only print expected/new values; do not send a transaction")]
         dry_run: bool,
     },
+    /// Close an empty stake account, claiming pending rewards and reclaiming rent.
+    CloseStake {
+        #[arg(long, help = "Stake account identifier")]
+        id: u64,
+    },
+    /// Top up an existing stake with additional GODL (restarts the lock from now).
+    TopUpStake {
+        #[arg(long, help = "Stake account identifier")]
+        id: u64,
+        #[arg(long, help = "Amount of GODL to deposit (decimal, e.g. 1.5)")]
+        amount: f64,
+    },
+    /// Merge one stake into another; longer lock wins and restarts from now.
+    MergeStake {
+        #[arg(long, help = "Stake that survives the merge")]
+        target_id: u64,
+        #[arg(long, help = "Stake that is folded in and closed")]
+        source_id: u64,
+    },
+    /// Close empty phantom StakeV2 accounts, forfeiting rewards (admin only).
+    ClosePhantomStakes {
+        #[arg(long, help = "Only report closable accounts; do not send transactions")]
+        dry_run: bool,
+    },
     InitializeSolMotherlode,
     InjectGodlMotherlode {
         #[arg(long, help = "Amount of GODL to inject (decimal, e.g. 1.5)")]
@@ -407,6 +431,21 @@ async fn main() -> Result<(), anyhow::Error> {
         }
         Commands::RebaseTotalStaked { dry_run } => {
             rebase_total_staked(&rpc, &payer, dry_run).await?;
+        }
+        Commands::CloseStake { id } => {
+            close_stake(&rpc, &payer, id).await?;
+        }
+        Commands::TopUpStake { id, amount } => {
+            top_up_stake(&rpc, &payer, id, amount).await?;
+        }
+        Commands::MergeStake {
+            target_id,
+            source_id,
+        } => {
+            merge_stake(&rpc, &payer, target_id, source_id).await?;
+        }
+        Commands::ClosePhantomStakes { dry_run } => {
+            close_phantom_stakes(&rpc, &payer, dry_run).await?;
         }
         Commands::WithdrawSolOtc => {
             withdraw_sol_otc(&rpc, &payer).await?;
