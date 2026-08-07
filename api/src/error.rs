@@ -59,6 +59,9 @@ pub enum GodlError {
 
     #[error("Cannot merge a stake account with itself")]
     MergeSameStake = 18,
+
+    #[error("V1 staking deposits are disabled; use DepositV2")]
+    StakeV1Deprecated = 19,
 }
 
 error!(GodlError);

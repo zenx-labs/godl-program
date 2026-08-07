@@ -155,6 +155,7 @@ impl StakeSpec {
 pub struct EnvBuilder {
     admin: Pubkey,
     stakes: Vec<(Pubkey, StakeSpec)>,
+    v1_stakes: Vec<(Pubkey, u64, u64)>,
     stake_rewards_factor: Numeric,
     treasury_godl: u64,
     funded: Vec<Pubkey>,
@@ -167,6 +168,7 @@ impl EnvBuilder {
         Self {
             admin,
             stakes: vec![],
+            v1_stakes: vec![],
             stake_rewards_factor: Numeric::ZERO,
             treasury_godl: 1_000_000 * GODL,
             funded: vec![admin],
@@ -184,6 +186,13 @@ impl EnvBuilder {
     /// on-curve account shape.
     pub fn stake_at(mut self, address: Pubkey, spec: StakeSpec) -> Self {
         self.stakes.push((address, spec));
+        self
+    }
+
+    /// A legacy v1 Stake account (weight == balance == 1x) at its canonical
+    /// PDA, with its vault funded to `balance` and the authority funded.
+    pub fn stake_v1(mut self, authority: Pubkey, balance: u64, rewards: u64) -> Self {
+        self.v1_stakes.push((authority, balance, rewards));
         self
     }
 
@@ -217,7 +226,9 @@ impl EnvBuilder {
         pt.add_account(config_pda().0, pod_account(&config));
         pt.add_account(board_pda().0, pod_account(&Board::zeroed()));
 
-        let total: u128 = self.stakes.iter().map(|(_, s)| s.units() as u128).sum();
+        // v1 weight is identically the balance (the sqrt curve's 1x fixpoint).
+        let total: u128 = self.stakes.iter().map(|(_, s)| s.units() as u128).sum::<u128>()
+            + self.v1_stakes.iter().map(|(_, b, _)| *b as u128).sum::<u128>();
         let mut treasury = Treasury::zeroed();
         treasury.total_staked = u64::try_from(total).unwrap();
         treasury.stake_rewards_factor = self.stake_rewards_factor;
@@ -244,6 +255,19 @@ impl EnvBuilder {
                 );
             }
             pt.add_account(spec.authority, system_account(100_000_000_000));
+        }
+        for (authority, balance, rewards) in &self.v1_stakes {
+            let mut s = Stake::zeroed();
+            s.authority = *authority;
+            s.balance = *balance;
+            s.rewards = *rewards;
+            let address = stake_pda(*authority).0;
+            pt.add_account(address, pod_account(&s));
+            pt.add_account(
+                get_associated_token_address(&address, &MINT_ADDRESS),
+                token_account(&address, *balance),
+            );
+            pt.add_account(*authority, system_account(100_000_000_000));
         }
         for k in &self.funded {
             pt.add_account(*k, system_account(100_000_000_000));

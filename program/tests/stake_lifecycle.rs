@@ -613,6 +613,77 @@ async fn topup_zero_effective_deposit_cannot_relock() {
 }
 
 // ---------------------------------------------------------------------------
+// V1 deposit gate
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn v1_deposit_is_disabled() {
+    let user = Keypair::new();
+    let admin = Keypair::new();
+    let mut ctx = EnvBuilder::new(admin.pubkey())
+        .fund(user.pubkey())
+        .token(user.pubkey(), 10 * GODL)
+        .start()
+        .await;
+
+    assert_custom_err(
+        send(
+            &mut ctx,
+            &[&user],
+            &[godl_api::sdk::deposit(user.pubkey(), 10 * GODL)],
+        )
+        .await,
+        19, // GodlError::StakeV1Deprecated
+    );
+    // No v1 stake account was created and no tokens moved.
+    assert!(!account_exists(&mut ctx, stake_pda(user.pubkey()).0).await);
+    assert_eq!(
+        token_balance(&mut ctx, user_ata(&user.pubkey())).await,
+        10 * GODL
+    );
+}
+
+#[tokio::test]
+async fn v1_withdraw_and_claim_still_work() {
+    // The gate must never trap existing v1 holders: exits and claims stay live.
+    let user = Keypair::new();
+    let admin = Keypair::new();
+    let mut ctx = EnvBuilder::new(admin.pubkey())
+        .stake_v1(user.pubkey(), 100 * GODL, 7 * GODL)
+        .start()
+        .await;
+
+    send(
+        &mut ctx,
+        &[&user],
+        &[godl_api::sdk::withdraw(user.pubkey(), 40 * GODL)],
+    )
+    .await
+    .unwrap();
+    send(
+        &mut ctx,
+        &[&user],
+        &[godl_api::sdk::claim_yield(user.pubkey(), u64::MAX)],
+    )
+    .await
+    .unwrap();
+
+    // 40 withdrawn + 7 rewards claimed; weight (== balance) left total_staked
+    // consistently.
+    assert_eq!(
+        token_balance(&mut ctx, user_ata(&user.pubkey())).await,
+        47 * GODL
+    );
+    let stake: Stake = get(&mut ctx, stake_pda(user.pubkey()).0).await;
+    assert_eq!(stake.balance, 60 * GODL);
+    assert_eq!(stake.rewards, 0);
+    assert_eq!(
+        get::<Treasury>(&mut ctx, treasury_pda().0).await.total_staked,
+        60 * GODL
+    );
+}
+
+// ---------------------------------------------------------------------------
 // MergeStakeV2
 // ---------------------------------------------------------------------------
 
