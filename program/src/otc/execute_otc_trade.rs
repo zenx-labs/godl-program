@@ -94,6 +94,14 @@ pub fn process_execute_otc_trade(accounts: &[AccountInfo<'_>], data: &[u8]) -> P
     let total_godl_required = godl_out
         .checked_add(godl_bonus)
         .ok_or(ProgramError::ArithmeticOverflow)?;
+
+    // The internal OTC ledger and the actual token vault must both cover the
+    // complete quote. Check the vault before collecting SOL or mutating state
+    // so an under-backed ledger cannot produce a partially filled trade.
+    if otc_treasury_tokens.amount() < total_godl_required {
+        return Err(GodlError::InsufficientOtcGodlBalance.into());
+    }
+
     {
         let otc_treasury = otc_treasury_info.as_account_mut::<OtcTreasury>(&godl_api::ID)?;
         if otc_treasury.godl_balance < total_godl_required {
@@ -213,7 +221,14 @@ pub fn process_execute_otc_trade(accounts: &[AccountInfo<'_>], data: &[u8]) -> P
         stake_tokens_info.as_associated_token_account(stake_info.key, mint_info.key)?;
     }
 
-    let amount = stake.deposit(godl_out, &clock, treasury, &otc_treasury_tokens)?;
+    let deposited = stake.deposit(godl_out, &clock, treasury, &otc_treasury_tokens)?;
+
+    // The preflight vault check makes a short fill unreachable in normal
+    // execution. Keep this exact-fill assertion at the accounting boundary so
+    // any future change to deposit semantics still fails the trade atomically.
+    if deposited != godl_out {
+        return Err(GodlError::InsufficientOtcGodlBalance.into());
+    }
 
     // Move godl_out from OTC ATA into the stake's ATA, signed by the OTC PDA.
     transfer_signed(
@@ -221,7 +236,7 @@ pub fn process_execute_otc_trade(accounts: &[AccountInfo<'_>], data: &[u8]) -> P
         otc_treasury_tokens_info,
         stake_tokens_info,
         token_program,
-        amount,
+        deposited,
         &[OTC_TREASURY],
     )?;
 

@@ -108,7 +108,15 @@ pub fn process_deposit_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramR
     }
 
     // Deposit into stake account.
-    let amount = stake.deposit(amount, &clock, treasury, &sender)?;
+    let deposited = stake.deposit(amount, &clock, treasury, &sender)?;
+
+    // deposit() clamps to the sender's token balance. Creating a stake is
+    // all-or-nothing: reject partial and zero-effective fills so a nonzero
+    // request can never leave behind a zero/underfilled stake account.
+    // Account creation and all state mutations roll back with this error.
+    if deposited != amount {
+        return Err(GodlError::AmountTooSmall.into());
+    }
 
     // Transfer GODL to treasury.
     transfer(
@@ -116,14 +124,14 @@ pub fn process_deposit_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramR
         sender_info,
         stake_tokens_info,
         token_program,
-        amount,
+        deposited,
     )?;
 
     // Log deposit.
     sol_log(
         &format!(
             "Depositing {} GODL",
-            amount_to_ui_amount(amount, TOKEN_DECIMALS)
+            amount_to_ui_amount(deposited, TOKEN_DECIMALS)
         )
         .as_str(),
     );

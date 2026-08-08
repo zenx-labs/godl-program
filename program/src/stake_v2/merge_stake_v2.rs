@@ -61,7 +61,9 @@ pub fn process_merge_stake_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
     let source_vault_amount = source_tokens_info
         .as_associated_token_account(source_stake_info.key, mint_info.key)?
         .amount();
-    target_tokens_info.as_associated_token_account(target_stake_info.key, mint_info.key)?;
+    let target_vault_amount = target_tokens_info
+        .as_associated_token_account(target_stake_info.key, mint_info.key)?
+        .amount();
     system_program.is_program(&system_program::ID)?;
     token_program.is_program(&spl_token::ID)?;
     associated_token_program.is_program(&spl_associated_token_account::ID)?;
@@ -72,7 +74,12 @@ pub fn process_merge_stake_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
         return Err(GodlError::NftAlreadyStaked.into());
     }
 
-    // The source vault must back the recorded balance (handler invariant).
+    // Each vault must independently back its recorded balance before merging.
+    // In particular, source dust must not silently repair an under-backed
+    // target and hide a pre-existing accounting invariant violation.
+    if target_vault_amount < target.balance {
+        return Err(ProgramError::InvalidAccountData);
+    }
     if source_vault_amount < source.balance {
         return Err(ProgramError::InvalidAccountData);
     }

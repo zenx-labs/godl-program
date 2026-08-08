@@ -63,12 +63,13 @@ pub fn process_top_up_stake_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> Pro
 
     // Deposit into stake account (settles rewards before the balance change and
     // adds the exact weighted delta to treasury.total_staked).
-    let amount = stake.deposit(amount, &clock, treasury, &sender)?;
+    let deposited = stake.deposit(amount, &clock, treasury, &sender)?;
 
-    // deposit() clamps to the sender's token balance; a zero-effective top-up
-    // must fail rather than restart the lock below (which would re-lock the
-    // entire existing balance in exchange for depositing nothing).
-    if amount == 0 {
+    // deposit() clamps to the sender's token balance. Top-ups are deliberately
+    // all-or-nothing: accepting a partial fill would restart the lock for the
+    // entire existing position while depositing less than the user requested.
+    // Any mutations performed by deposit() are rolled back with this error.
+    if deposited != amount {
         return Err(GodlError::AmountTooSmall.into());
     }
 
@@ -82,14 +83,14 @@ pub fn process_top_up_stake_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> Pro
         sender_info,
         stake_tokens_info,
         token_program,
-        amount,
+        deposited,
     )?;
 
     // Log top-up.
     sol_log(
         &format!(
             "Topping up {} GODL",
-            amount_to_ui_amount(amount, TOKEN_DECIMALS)
+            amount_to_ui_amount(deposited, TOKEN_DECIMALS)
         )
         .as_str(),
     );
