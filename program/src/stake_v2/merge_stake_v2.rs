@@ -1,6 +1,5 @@
 use godl_api::prelude::*;
 use solana_program::log::sol_log;
-use spl_associated_token_account::get_associated_token_address;
 use spl_token::amount_to_ui_amount;
 use steel::*;
 
@@ -54,20 +53,15 @@ pub fn process_merge_stake_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
         .assert_mut(|s| s.authority == *signer_info.key)?
         .assert_mut(|s| s.id == source_id)?;
     let treasury = treasury_info.as_account_mut::<Treasury>(&godl_api::ID)?;
-    // Verify the source vault is the source's canonical ATA, but tolerate it
-    // being closed/uninitialized (the drained-vault shape close_stake_v2 also
-    // tolerates): a missing vault simply backs zero tokens.
-    source_tokens_info.has_address(&get_associated_token_address(
-        source_stake_info.key,
-        &MINT_ADDRESS,
-    ))?;
-    let source_vault_amount = if source_tokens_info.data_is_empty() {
-        0
-    } else {
-        source_tokens_info
-            .as_associated_token_account(source_stake_info.key, mint_info.key)?
-            .amount()
-    };
+    // Both vaults must exist and be their stake's canonical ATA. Every
+    // canonical stake is created with its vault and only the program can close
+    // it, so a missing vault is an invariant violation — fail closed rather
+    // than absorb it (only the admin-gated ReconcileStakeV2 tolerates that
+    // shape).
+    let source_vault_amount = source_tokens_info
+        .as_associated_token_account(source_stake_info.key, mint_info.key)?
+        .amount();
+    target_tokens_info.as_associated_token_account(target_stake_info.key, mint_info.key)?;
     system_program.is_program(&system_program::ID)?;
     token_program.is_program(&spl_token::ID)?;
     associated_token_program.is_program(&spl_associated_token_account::ID)?;
@@ -81,21 +75,6 @@ pub fn process_merge_stake_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
     // The source vault must back the recorded balance (handler invariant).
     if source_vault_amount < source.balance {
         return Err(ProgramError::InvalidAccountData);
-    }
-
-    // Target vault may be missing; create it lazily like deposit_v2.
-    if target_tokens_info.data_is_empty() {
-        create_associated_token_account(
-            signer_info,
-            target_stake_info,
-            target_tokens_info,
-            mint_info,
-            system_program,
-            token_program,
-            associated_token_program,
-        )?;
-    } else {
-        target_tokens_info.as_associated_token_account(target_stake_info.key, mint_info.key)?;
     }
 
     // Auto-migrate both to the sqrt weight curve, then settle both at their
@@ -156,17 +135,14 @@ pub fn process_merge_stake_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
         )?;
     }
 
-    // Close the source vault (if it exists) and account, returning the rents
-    // to the signer.
-    if !source_tokens_info.data_is_empty() {
-        close_token_account_signed(
-            source_tokens_info,
-            signer_info,
-            source_stake_info,
-            token_program,
-            &[STAKE_V2, &signer_info.key.to_bytes(), &source_id.to_le_bytes()],
-        )?;
-    }
+    // Close the source vault and account, returning the rents to the signer.
+    close_token_account_signed(
+        source_tokens_info,
+        signer_info,
+        source_stake_info,
+        token_program,
+        &[STAKE_V2, &signer_info.key.to_bytes(), &source_id.to_le_bytes()],
+    )?;
 
     // Log merge.
     sol_log(

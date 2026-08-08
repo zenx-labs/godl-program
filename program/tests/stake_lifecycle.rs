@@ -178,33 +178,31 @@ async fn close_rejects_wrong_authority_and_noncanonical() {
 }
 
 #[tokio::test]
-async fn close_tolerates_missing_vault_ata() {
-    // Version 0 on purpose: closing must work without migrating, and a
-    // drained-and-closed vault (reconcile-era shape) must read as zero.
+async fn close_rejects_missing_vault_ata() {
+    // A canonical stake without its vault ATA is an invariant violation no
+    // reachable state produces; close must fail closed instead of absorbing
+    // it (only the admin-gated ReconcileStakeV2 tolerates that shape).
     let user = Keypair::new();
     let admin = Keypair::new();
-    let rewards = 3 * GODL;
     let s = spec(user.pubkey(), 6, 0, 20 * SCALE, false, 0)
-        .with_rewards(rewards)
+        .with_rewards(3 * GODL)
         .without_vault();
     let stake_addr = s.address();
 
     let mut ctx = EnvBuilder::new(admin.pubkey()).stake(s).start().await;
 
-    send(
+    assert!(send(
         &mut ctx,
         &[&user],
         &[godl_api::sdk::close_stake_v2(user.pubkey(), 6)],
     )
     .await
-    .unwrap();
+    .is_err());
 
-    assert_eq!(
-        token_balance(&mut ctx, user_ata(&user.pubkey())).await,
-        rewards
-    );
-    assert!(!account_exists(&mut ctx, stake_addr).await);
-    assert_invariant(&mut ctx, &[]).await;
+    // Nothing was closed or paid out.
+    let stake: StakeV2 = get(&mut ctx, stake_addr).await;
+    assert_eq!(stake.rewards, 3 * GODL);
+    assert_invariant(&mut ctx, &[stake_addr]).await;
 }
 
 // ---------------------------------------------------------------------------
@@ -612,6 +610,38 @@ async fn topup_zero_effective_deposit_cannot_relock() {
     assert_invariant(&mut ctx, &[stake_addr]).await;
 }
 
+#[tokio::test]
+async fn topup_rejects_missing_vault_ata() {
+    // A canonical stake without its vault ATA is an invariant violation no
+    // reachable state produces; top-up must fail closed instead of
+    // self-healing the vault (only the admin-gated ReconcileStakeV2 tolerates
+    // that shape).
+    let user = Keypair::new();
+    let admin = Keypair::new();
+    let s = spec(user.pubkey(), 14, 0, SCALE, false, 1).without_vault();
+    let stake_addr = s.address();
+
+    let mut ctx = EnvBuilder::new(admin.pubkey())
+        .stake(s)
+        .token(user.pubkey(), 50 * GODL)
+        .start()
+        .await;
+
+    assert!(send(
+        &mut ctx,
+        &[&user],
+        &[godl_api::sdk::top_up_stake_v2(user.pubkey(), 14, 50 * GODL)],
+    )
+    .await
+    .is_err());
+
+    // Nothing was deposited.
+    let stake: StakeV2 = get(&mut ctx, stake_addr).await;
+    assert_eq!(stake.balance, 0);
+    assert_eq!(token_balance(&mut ctx, user_ata(&user.pubkey())).await, 50 * GODL);
+    assert_invariant(&mut ctx, &[stake_addr]).await;
+}
+
 // ---------------------------------------------------------------------------
 // V1 deposit gate
 // ---------------------------------------------------------------------------
@@ -818,10 +848,11 @@ async fn merge_auto_migrates_v0_inputs_and_sweeps_dust() {
 }
 
 #[tokio::test]
-async fn merge_tolerates_missing_source_vault() {
-    // A balance-0 source whose vault was drained and closed (the shape
-    // close_stake_v2 tolerates) must still be mergeable so its pending rewards
-    // fold into the target instead of forcing a wallet payout.
+async fn merge_rejects_missing_source_vault() {
+    // A canonical stake without its vault ATA is an invariant violation no
+    // reachable state produces; merge must fail closed instead of treating
+    // the missing vault as zero backing (only the admin-gated
+    // ReconcileStakeV2 tolerates that shape).
     let user = Keypair::new();
     let admin = Keypair::new();
     let rewards = 4 * GODL;
@@ -837,24 +868,22 @@ async fn merge_tolerates_missing_source_vault() {
         .start()
         .await;
 
-    send(
+    assert!(send(
         &mut ctx,
         &[&user],
         &[godl_api::sdk::merge_stake_v2(user.pubkey(), 0, 1)],
     )
     .await
-    .unwrap();
+    .is_err());
 
-    let merged: StakeV2 = get(&mut ctx, target.address()).await;
-    assert_eq!(merged.balance, 100 * GODL, "nothing to move from the source");
-    assert_eq!(merged.rewards, rewards, "source rewards folded into target");
-    assert!(!account_exists(&mut ctx, source.address()).await);
+    // Nothing merged: both accounts untouched.
+    let t: StakeV2 = get(&mut ctx, target.address()).await;
+    assert_eq!(t.balance, 100 * GODL);
+    assert_eq!(t.rewards, 0);
+    let s: StakeV2 = get(&mut ctx, source.address()).await;
+    assert_eq!(s.rewards, rewards);
     assert_eq!(token_balance(&mut ctx, target_vault).await, 100 * GODL);
-    assert_eq!(
-        get::<Treasury>(&mut ctx, treasury_pda().0).await.total_staked,
-        100 * GODL
-    );
-    assert_invariant(&mut ctx, &[target.address()]).await;
+    assert_invariant(&mut ctx, &[target.address(), source.address()]).await;
 }
 
 #[tokio::test]

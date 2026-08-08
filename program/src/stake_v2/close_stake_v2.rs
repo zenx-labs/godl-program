@@ -1,6 +1,5 @@
 use godl_api::prelude::*;
 use solana_program::log::sol_log;
-use spl_associated_token_account::get_associated_token_address;
 use spl_token::amount_to_ui_amount;
 use steel::*;
 
@@ -54,19 +53,13 @@ pub fn process_close_stake_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
         return Err(GodlError::NftAlreadyStaked.into());
     }
 
-    // Verify the vault is the stake's canonical ATA, but tolerate it being
-    // closed/uninitialized (zero residual).
-    stake_tokens_info.has_address(&get_associated_token_address(
-        stake_info.key,
-        &MINT_ADDRESS,
-    ))?;
-    let residual = if stake_tokens_info.data_is_empty() {
-        0
-    } else {
-        stake_tokens_info
-            .as_associated_token_account(stake_info.key, mint_info.key)?
-            .amount()
-    };
+    // The vault must exist and be the stake's canonical ATA. Every canonical
+    // stake is created with its vault and only the program can close it, so a
+    // missing vault is an invariant violation — fail closed rather than absorb
+    // it (only the admin-gated ReconcileStakeV2 tolerates that shape).
+    let residual = stake_tokens_info
+        .as_associated_token_account(stake_info.key, mint_info.key)?
+        .amount();
 
     // Settle and take all pending rewards.
     let rewards = stake.claim(u64::MAX, &clock, treasury)?;
@@ -119,15 +112,13 @@ pub fn process_close_stake_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
     }
 
     // Close the vault, returning its rent to the signer.
-    if !stake_tokens_info.data_is_empty() {
-        close_token_account_signed(
-            stake_tokens_info,
-            signer_info,
-            stake_info,
-            token_program,
-            &[STAKE_V2, &signer_info.key.to_bytes(), &id.to_le_bytes()],
-        )?;
-    }
+    close_token_account_signed(
+        stake_tokens_info,
+        signer_info,
+        stake_info,
+        token_program,
+        &[STAKE_V2, &signer_info.key.to_bytes(), &id.to_le_bytes()],
+    )?;
 
     // Log close.
     sol_log(

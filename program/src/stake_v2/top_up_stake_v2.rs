@@ -54,20 +54,12 @@ pub fn process_top_up_stake_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> Pro
     // Auto-migrate to the sqrt weight curve on touch (no-op once version 1).
     stake.migrate_weight(treasury)?;
 
-    // Create stake tokens account.
-    if stake_tokens_info.data_is_empty() {
-        create_associated_token_account(
-            signer_info,
-            stake_info,
-            stake_tokens_info,
-            mint_info,
-            system_program,
-            token_program,
-            associated_token_program,
-        )?;
-    } else {
-        stake_tokens_info.as_associated_token_account(stake_info.key, mint_info.key)?;
-    }
+    // The vault must exist and be the stake's canonical ATA. Every canonical
+    // stake is created with its vault (deposit_v2 / OTC) and only the program
+    // can close it, so a missing vault is an invariant violation — fail closed
+    // rather than self-heal it (only the admin-gated ReconcileStakeV2
+    // tolerates that shape).
+    stake_tokens_info.as_associated_token_account(stake_info.key, mint_info.key)?;
 
     // Deposit into stake account (settles rewards before the balance change and
     // adds the exact weighted delta to treasury.total_staked).
