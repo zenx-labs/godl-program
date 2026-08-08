@@ -10,7 +10,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 godl-api = { path = "../api" }
-steel = { features = ["spl"], version = "4.0.3" }
+steel = { features = ["spl"], version = "4.0.9" }
 spl-token = { version = "^4", features = ["no-entrypoint"] }
 
 [[bin]]
