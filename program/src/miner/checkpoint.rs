@@ -4,9 +4,15 @@ use spl_token::amount_to_ui_amount;
 use steel::*;
 
 /// Checkpoints a miner's rewards with optional pool distribution.
+///
+/// Legacy layout, kept for clients that have not migrated to `CheckpointWithMinerExtended`. It
+/// does not settle gold rewards, so it self-retires at `LEGACY_CHECKPOINT_EXPIRY_TS`.
 pub fn process_checkpoint(accounts: &[AccountInfo<'_>], _data: &[u8]) -> ProgramResult {
     // Load accounts.
     let clock = Clock::get()?;
+    if clock.unix_timestamp >= LEGACY_CHECKPOINT_EXPIRY_TS {
+        return Err(GodlError::LegacyCheckpointExpired.into());
+    }
     let [signer_info, board_info, miner_info, round_info, treasury_info, pool_round_info, pool_member_info, system_program] =
         accounts
     else {

@@ -68,6 +68,12 @@ pub enum GodlError {
 
     #[error("Insufficient sol motherlode balance")]
     InsufficientMotherlodeBalance = 21,
+
+    #[error("Legacy checkpoint has expired; use CheckpointWithMinerExtended")]
+    LegacyCheckpointExpired = 22,
+
+    #[error("Gold distribution is locked until the legacy checkpoint expires")]
+    GoldDistributionLocked = 23,
 }
 
 error!(GodlError);

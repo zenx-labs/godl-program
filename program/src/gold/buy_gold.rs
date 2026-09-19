@@ -21,6 +21,10 @@ pub fn process_buy_gold(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramRes
 
     // Load accounts.
     let clock = Clock::get()?;
+    // No distribution while the legacy checkpoint (which does not settle gold) can still run.
+    if clock.unix_timestamp < LEGACY_CHECKPOINT_EXPIRY_TS {
+        return Err(GodlError::GoldDistributionLocked.into());
+    }
     let (godl_accounts, swap_accounts) = accounts.split_at(12);
     let [signer_info, board_info, config_info, treasury_info, sol_motherlode_info, gold_vault_info, gold_vault_sol_info, gold_vault_xaut_info, xaut_mint_info, system_program, token_program, godl_program] =
         godl_accounts

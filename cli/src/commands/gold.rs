@@ -22,8 +22,8 @@ use super::swap::GODL_LUT;
 use crate::display::{print_gold_vault, print_miner_extended};
 use crate::jupiter::JupiterClient;
 use crate::rpc::{
-    get_board, get_gold_vault, get_miner, get_miner_extended, get_miner_extendeds, get_miners,
-    get_sol_motherlode, get_treasury,
+    get_board, get_clock, get_gold_vault, get_miner, get_miner_extended, get_miner_extendeds,
+    get_miners, get_sol_motherlode, get_treasury,
 };
 use crate::transaction::{
     get_address_lookup_table_accounts, submit_transaction,
@@ -397,6 +397,15 @@ async fn execute_buy_gold(
             "sol motherlode holds {} SOL, requested {}",
             motherlode.amount as f64 / LAMPORTS_PER_SOL as f64,
             amount as f64 / LAMPORTS_PER_SOL as f64
+        );
+    }
+    // The program rejects distributions until the legacy checkpoint has expired; fail early.
+    let clock = get_clock(rpc).await?;
+    if clock.unix_timestamp < LEGACY_CHECKPOINT_EXPIRY_TS {
+        bail!(
+            "gold distribution is locked until unix time {} (legacy checkpoint expiry); chain time is {}",
+            LEGACY_CHECKPOINT_EXPIRY_TS,
+            clock.unix_timestamp
         );
     }
     // Refuse to distribute against a broken denominator or before the bulk creation ran.

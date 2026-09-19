@@ -186,3 +186,12 @@ pub const XAUT_DECIMALS: u8 = 6;
 /// The factor is stored as "XAUT base units per gram of unrefined GODL, times this scale" so a
 /// small distribution against a large unrefined supply keeps enough fractional bits in I80F48.
 pub const GOLD_FACTOR_SCALE: u64 = 1_000_000;
+
+/// The unix timestamp at which the legacy `Checkpoint` instruction stops working and gold
+/// distributions (`BuyGold` / `DepositGold`) become possible.
+///
+/// The legacy layout changes a miner's unrefined GODL without settling gold rewards, so it must
+/// be dead before the first distribution. Set this to the upgrade time plus six hours
+/// (`6 * ONE_HOUR`) right before building the release; clients have until then to migrate to
+/// `CheckpointWithMinerExtended`. Seeded from the mainnet clock (1789815626) on 2026-09-19.
+pub const LEGACY_CHECKPOINT_EXPIRY_TS: i64 = 1_789_815_626 + 6 * ONE_HOUR;
