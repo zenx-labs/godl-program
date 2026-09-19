@@ -33,7 +33,9 @@ pub fn process_reconcile_stake_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
 
     // Load the stake. Owner + discriminant are validated by as_account_mut, but
     // intentionally NOT the PDA seeds (see the note above).
-    let stake = stake_info.is_writable()?.as_account_mut::<StakeV2>(&godl_api::ID)?;
+    let stake = stake_info
+        .is_writable()?
+        .as_account_mut::<StakeV2>(&godl_api::ID)?;
 
     let treasury = treasury_info
         .is_writable()?

@@ -72,8 +72,14 @@ pub enum GodlError {
     #[error("Legacy checkpoint has expired; use CheckpointWithMinerExtended")]
     LegacyCheckpointExpired = 22,
 
-    #[error("Gold distribution is locked until the legacy checkpoint expires")]
+    #[error("Gold distribution is locked until the legacy instructions expire")]
     GoldDistributionLocked = 23,
+
+    #[error("Miner extended account is missing; create it first")]
+    MinerExtendedMissing = 24,
+
+    #[error("Legacy deploy has expired; use DeployWithMinerExtended")]
+    LegacyDeployExpired = 25,
 }
 
 error!(GodlError);

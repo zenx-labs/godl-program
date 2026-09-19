@@ -3,12 +3,14 @@ mod claim_gold;
 mod create_miner_extended;
 mod deposit_gold;
 mod initialize_gold_vault;
+mod pre_buy_gold;
 
 pub use buy_gold::*;
 pub use claim_gold::*;
 pub use create_miner_extended::*;
 pub use deposit_gold::*;
 pub use initialize_gold_vault::*;
+pub use pre_buy_gold::*;
 
 use godl_api::prelude::*;
 use steel::*;

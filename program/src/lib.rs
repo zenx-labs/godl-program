@@ -51,6 +51,9 @@ pub fn process_instruction(
         GodlInstruction::SetReferrer => process_set_referrer(accounts, data)?,
         GodlInstruction::ClaimReferral => process_claim_referral(accounts, data)?,
         GodlInstruction::Deploy => process_deploy(accounts, data)?,
+        GodlInstruction::DeployWithMinerExtended => {
+            process_deploy_with_miner_extended(accounts, data)?
+        }
         GodlInstruction::Log => process_log(accounts, data)?,
         GodlInstruction::Close => process_close(accounts, data)?,
         GodlInstruction::Reset => process_reset(accounts, data)?,
@@ -100,6 +103,7 @@ pub fn process_instruction(
         // Gold rewards
         GodlInstruction::InitializeGoldVault => process_initialize_gold_vault(accounts, data)?,
         GodlInstruction::CreateMinerExtended => process_create_miner_extended(accounts, data)?,
+        GodlInstruction::PreBuyGold => process_pre_buy_gold(accounts, data)?,
         GodlInstruction::BuyGold => process_buy_gold(accounts, data)?,
         GodlInstruction::DepositGold => process_deposit_gold(accounts, data)?,
         GodlInstruction::ClaimGold => process_claim_gold(accounts, data)?,
@@ -119,7 +123,7 @@ pub fn process_instruction(
 
 entrypoint!(process_instruction);
 
-security_txt! { 
+security_txt! {
     name: "Godl",
     project_url: "https://godl.supply",
     contacts: "email:bootapollo@pm.me,telegram:bootapollo",

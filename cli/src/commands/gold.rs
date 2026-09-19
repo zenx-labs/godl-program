@@ -3,7 +3,8 @@
 //!
 //! Rollout order matters: `initialize-gold-vault`, then
 //! `create-miner-extended-all`, then `audit-unclaimed` (and
-//! `rebase-total-unclaimed` if it drifted), and only then the first `buy-gold`.
+//! `rebase-total-unclaimed` if it drifted), and only then the first `buy-gold`,
+//! which the program refuses before `LEGACY_INSTRUCTION_EXPIRY_TS` anyway.
 
 use std::collections::HashSet;
 
@@ -11,8 +12,8 @@ use anyhow::{bail, Context, Result};
 use godl_api::prelude::*;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
-    instruction::Instruction, native_token::LAMPORTS_PER_SOL, pubkey::Pubkey, signature::Keypair,
-    signature::Signer,
+    instruction::Instruction, native_token::LAMPORTS_PER_SOL, program_pack::Pack, pubkey::Pubkey,
+    signature::Keypair, signature::Signer,
 };
 use spl_associated_token_account::get_associated_token_address;
 use spl_token::amount_to_ui_amount;
@@ -399,12 +400,12 @@ async fn execute_buy_gold(
             amount as f64 / LAMPORTS_PER_SOL as f64
         );
     }
-    // The program rejects distributions until the legacy checkpoint has expired; fail early.
+    // The program rejects distributions until the legacy instructions have expired; fail early.
     let clock = get_clock(rpc).await?;
-    if clock.unix_timestamp < LEGACY_CHECKPOINT_EXPIRY_TS {
+    if clock.unix_timestamp < LEGACY_INSTRUCTION_EXPIRY_TS {
         bail!(
-            "gold distribution is locked until unix time {} (legacy checkpoint expiry); chain time is {}",
-            LEGACY_CHECKPOINT_EXPIRY_TS,
+            "gold distribution is locked until unix time {} (legacy instruction expiry); chain time is {}",
+            LEGACY_INSTRUCTION_EXPIRY_TS,
             clock.unix_timestamp
         );
     }
@@ -422,24 +423,51 @@ async fn execute_buy_gold(
     }
     let _ = get_board(rpc).await?;
 
+    // `buy_gold` asserts the vault's WSOL account is fully consumed, so the route has to be
+    // quoted for everything that will be in it after `pre_buy_gold` + sync: the requested
+    // amount plus any lamports already sitting above rent (dust, donations).
     let gold_vault_address = gold_vault_pda().0;
+    let wsol_rent = rpc
+        .get_minimum_balance_for_rent_exemption(spl_token::state::Account::LEN)
+        .await?;
+    let wsol_dust = rpc
+        .get_account(&gold_vault_sol_address())
+        .await
+        .map(|acc| acc.lamports.saturating_sub(wsol_rent))
+        .unwrap_or(0);
+    let quote_amount = amount
+        .checked_add(wsol_dust)
+        .context("swap amount overflow")?;
+    if wsol_dust > 0 {
+        println!(
+            "Including {} lamports of WSOL dust already in the vault",
+            wsol_dust
+        );
+    }
     let swap = jup
-        .build_sol_swap(gold_vault_address, payer.pubkey(), amount, XAUT_MINT, dexes)
+        .build_sol_swap(
+            gold_vault_address,
+            payer.pubkey(),
+            quote_amount,
+            XAUT_MINT,
+            dexes,
+        )
         .await?;
 
     let mut lut_accounts = get_address_lookup_table_accounts(rpc, vec![GODL_LUT]).await?;
     lut_accounts.extend(swap.lut_accounts);
 
+    let pre_buy_ix = godl_api::sdk::pre_buy_gold(payer.pubkey(), amount);
     let buy_ix = godl_api::sdk::buy_gold(
         payer.pubkey(),
-        amount,
         min_out,
         &swap.swap_accounts,
         &swap.swap_data,
     );
 
-    let mut ixs: Vec<Instruction> = Vec::with_capacity(swap.setup_ixs.len() + 2);
+    let mut ixs: Vec<Instruction> = Vec::with_capacity(swap.setup_ixs.len() + 3);
     ixs.extend(swap.setup_ixs);
+    ixs.push(pre_buy_ix);
     ixs.push(buy_ix);
     if let Some(cleanup) = swap.cleanup_ix {
         ixs.push(cleanup);
@@ -448,7 +476,7 @@ async fn execute_buy_gold(
     submit_transaction_with_address_lookup_tables(rpc, payer, &ixs, lut_accounts).await?;
     println!(
         "Bought gold with {} SOL from the sol motherlode",
-        amount as f64 / LAMPORTS_PER_SOL as f64
+        quote_amount as f64 / LAMPORTS_PER_SOL as f64
     );
     Ok(())
 }

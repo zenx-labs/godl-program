@@ -1,6 +1,6 @@
 use steel::*;
 
-// ENUM CURSOR: 66
+// ENUM CURSOR: 68
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, TryFromPrimitive)]
 pub enum GodlInstruction {
@@ -89,6 +89,12 @@ pub enum GodlInstruction {
     /// before the first gold distribution because it changes `rewards_godl` without settling
     /// gold rewards.
     CheckpointWithMinerExtended = 66,
+    /// Moves SOL from the sol motherlode into the gold vault's WSOL account; `BuyGold` follows in
+    /// the same transaction (same split as `PreBury` / `Bury`).
+    PreBuyGold = 67,
+    /// `Deploy` plus the gold vault and miner extended accounts; creates the extended account
+    /// next to the miner. Legacy `Deploy` expires with legacy `Checkpoint`.
+    DeployWithMinerExtended = 68,
 }
 
 #[repr(C)]
@@ -419,10 +425,23 @@ pub struct CreateMinerExtended {}
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct BuyGold {
-    /// Lamports to move out of the sol motherlode and swap.
-    pub amount: [u8; 8],
     /// Minimum XAUt0 (base units) the swap must produce.
     pub min_xaut_out: [u8; 8],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct PreBuyGold {
+    /// Lamports to move out of the sol motherlode into the gold vault's WSOL account.
+    pub amount: [u8; 8],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct DeployWithMinerExtended {
+    pub amount: [u8; 8],
+    pub squares: [u8; 4],
+    pub is_pooled: u8,
 }
 
 #[repr(C)]
@@ -504,3 +523,5 @@ instruction!(GodlInstruction, DepositGold);
 instruction!(GodlInstruction, ClaimGold);
 instruction!(GodlInstruction, RebaseTotalUnclaimed);
 instruction!(GodlInstruction, CheckpointWithMinerExtended);
+instruction!(GodlInstruction, PreBuyGold);
+instruction!(GodlInstruction, DeployWithMinerExtended);

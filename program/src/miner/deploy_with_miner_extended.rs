@@ -7,27 +7,29 @@ use solana_program::{
 };
 use steel::*;
 
-/// Deploys capital to prospect on a square with optional pooling.
+use crate::gold::load_or_create_miner_extended;
+
+/// Deploys capital to prospect on a square with optional pooling, creating the miner's gold
+/// extended account next to the miner account.
 ///
-/// Legacy layout, kept for clients that have not migrated to `DeployWithMinerExtended`. It
-/// does not create the miner's gold extended account, so it self-retires at
-/// `LEGACY_INSTRUCTION_EXPIRY_TS` together with legacy `Checkpoint`.
-pub fn process_deploy(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResult {
+/// Gold-aware counterpart of `process_deploy`: same accounts with the gold vault and the miner
+/// extended PDA inserted before the entropy accounts.
+pub fn process_deploy_with_miner_extended(
+    accounts: &[AccountInfo<'_>],
+    data: &[u8],
+) -> ProgramResult {
     // Parse data.
-    let args = Deploy::try_from_bytes(data)?;
+    let args = DeployWithMinerExtended::try_from_bytes(data)?;
     let mut amount = u64::from_le_bytes(args.amount);
     let mask = u32::from_le_bytes(args.squares);
     let mut is_pooled = args.is_pooled != 0;
 
     // Load accounts.
     let clock = Clock::get()?;
-    if clock.unix_timestamp >= LEGACY_INSTRUCTION_EXPIRY_TS {
-        return Err(GodlError::LegacyDeployExpired.into());
-    }
-    let (godl_accounts, entropy_accounts) = accounts.split_at(10);
+    let (godl_accounts, entropy_accounts) = accounts.split_at(12);
     sol_log(&format!("Godl accounts: {:?}", godl_accounts.len()).to_string());
     sol_log(&format!("Entropy accounts: {:?}", entropy_accounts.len()).to_string());
-    let [signer_info, authority_info, automation_v2_info, board_info, miner_info, round_info, pool_round_info, pool_member_info, config_info, system_program] =
+    let [signer_info, authority_info, automation_v2_info, board_info, miner_info, round_info, pool_round_info, pool_member_info, config_info, system_program, gold_vault_info, miner_extended_info] =
         godl_accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -56,6 +58,9 @@ pub fn process_deploy(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResul
         &godl_api::ID,
     )?;
     system_program.is_program(&system_program::ID)?;
+    let gold_vault = gold_vault_info
+        .has_seeds(&[GOLD_VAULT], &godl_api::ID)?
+        .as_account::<GoldVault>(&godl_api::ID)?;
 
     // Wait until first deploy to start round.
     if board.end_slot == u64::MAX {
@@ -160,6 +165,16 @@ pub fn process_deploy(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResul
                 }
             })?
     };
+
+    // Open miner extended account.
+    load_or_create_miner_extended(
+        miner_extended_info,
+        gold_vault,
+        *authority_info.key,
+        signer_info,
+        system_program,
+        true,
+    )?;
 
     // Reset miner
     if miner.round_id != round.id {

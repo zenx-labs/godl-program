@@ -1,13 +1,15 @@
 use godl_api::prelude::*;
-use solana_program::{log::sol_log, native_token::lamports_to_sol, rent::Rent};
+use solana_program::{log::sol_log, native_token::lamports_to_sol};
 use spl_token::amount_to_ui_amount;
 use steel::*;
 
-/// Swap SOL accumulated in the sol motherlode into XAUt0 and distribute it to unrefined GODL
-/// holders through the gold vault rewards factor.
+/// Swap the gold vault's WSOL (funded by `PreBuyGold`) into XAUt0 and distribute it to unrefined
+/// GODL holders through the gold vault rewards factor.
 ///
 /// Mirrors `Bury`: the instruction data after the args is forwarded verbatim to the configured
 /// swap program, with the gold vault PDA as the signing taker. Only the bury authority may call.
+/// The whole WSOL balance must be consumed by the swap, so the route has to be quoted for the
+/// full balance including any dust that landed in the account.
 pub fn process_buy_gold(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResult {
     // Parse data: fixed args followed by the raw swap instruction data.
     let args_len = std::mem::size_of::<BuyGold>();
@@ -15,18 +17,17 @@ pub fn process_buy_gold(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramRes
         return Err(ProgramError::InvalidInstructionData);
     }
     let args = BuyGold::try_from_bytes(&data[..args_len])?;
-    let amount = u64::from_le_bytes(args.amount);
     let min_xaut_out = u64::from_le_bytes(args.min_xaut_out);
     let swap_data = &data[args_len..];
 
     // Load accounts.
     let clock = Clock::get()?;
-    // No distribution while the legacy checkpoint (which does not settle gold) can still run.
-    if clock.unix_timestamp < LEGACY_CHECKPOINT_EXPIRY_TS {
+    // No distribution while the legacy instructions (which do not settle gold) can still run.
+    if clock.unix_timestamp < LEGACY_INSTRUCTION_EXPIRY_TS {
         return Err(GodlError::GoldDistributionLocked.into());
     }
-    let (godl_accounts, swap_accounts) = accounts.split_at(12);
-    let [signer_info, board_info, config_info, treasury_info, sol_motherlode_info, gold_vault_info, gold_vault_sol_info, gold_vault_xaut_info, xaut_mint_info, system_program, token_program, godl_program] =
+    let (godl_accounts, swap_accounts) = accounts.split_at(10);
+    let [signer_info, board_info, config_info, treasury_info, gold_vault_info, gold_vault_sol_info, gold_vault_xaut_info, xaut_mint_info, token_program, godl_program] =
         godl_accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -37,10 +38,6 @@ pub fn process_buy_gold(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramRes
         .as_account::<Config>(&godl_api::ID)?
         .assert(|c| c.bury_authority == *signer_info.key)?;
     let treasury = treasury_info.as_account::<Treasury>(&godl_api::ID)?;
-    let sol_motherlode = sol_motherlode_info
-        .is_writable()?
-        .has_seeds(&[SOL_MOTHERLODE], &godl_api::ID)?
-        .as_account_mut::<SolMotherlode>(&godl_api::ID)?;
     let gold_vault = gold_vault_info
         .is_writable()?
         .has_seeds(&[GOLD_VAULT], &godl_api::ID)?
@@ -52,39 +49,11 @@ pub fn process_buy_gold(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramRes
         .is_writable()?
         .as_associated_token_account(gold_vault_info.key, &XAUT_MINT)?;
     xaut_mint_info.has_address(&XAUT_MINT)?.as_mint()?;
-    system_program.is_program(&system_program::ID)?;
     token_program.is_program(&spl_token::ID)?;
     godl_program.is_program(&godl_api::ID)?;
 
-    // Validate amount against the motherlode ledger and its actual lamports.
-    if amount == 0 {
-        return Err(GodlError::AmountTooSmall.into());
-    }
-    if amount > sol_motherlode.amount {
-        return Err(GodlError::InsufficientMotherlodeBalance.into());
-    }
-    let min_balance = Rent::get()?.minimum_balance(8 + std::mem::size_of::<SolMotherlode>());
-    if sol_motherlode_info.lamports() < min_balance + amount {
-        return Err(GodlError::InsufficientMotherlodeBalance.into());
-    }
-
-    // Move SOL into the vault's WSOL account and wrap it.
-    //
-    // The runtime requires the caller's instruction accounts to be balanced at every nested
-    // call, but it only syncs caller-side lamport changes for accounts that are passed to that
-    // call. The motherlode debit therefore rides along on the `SyncNative` CPI (the token
-    // program ignores extra accounts) so the debit and the credit are both visible before the
-    // first CPI is pushed; otherwise the instruction fails with `UnbalancedInstruction`.
-    sol_motherlode.amount -= amount;
-    sol_motherlode_info.send(amount, gold_vault_sol_info);
-    let mut sync_ix = spl_token::instruction::sync_native(&spl_token::ID, gold_vault_sol_info.key)?;
-    sync_ix
-        .accounts
-        .push(AccountMeta::new(*sol_motherlode_info.key, false));
-    solana_program::program::invoke(
-        &sync_ix,
-        &[gold_vault_sol_info.clone(), sol_motherlode_info.clone()],
-    )?;
+    // Sync native token balance.
+    sync_native(gold_vault_sol_info)?;
 
     // Record pre-swap balances.
     let pre_swap_sol_balance = gold_vault_sol_info
@@ -94,7 +63,6 @@ pub fn process_buy_gold(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramRes
         .as_associated_token_account(gold_vault_info.key, &XAUT_MINT)?
         .amount();
     let pre_swap_vault_lamports = gold_vault_info.lamports();
-    let pre_swap_motherlode_lamports = sol_motherlode_info.lamports();
     assert!(pre_swap_sol_balance > 0);
 
     // Build swap accounts.
@@ -126,11 +94,6 @@ pub fn process_buy_gold(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramRes
         pre_swap_vault_lamports,
         "Gold vault lamports changed during swap"
     );
-    assert_eq!(
-        sol_motherlode_info.lamports(),
-        pre_swap_motherlode_lamports,
-        "Sol motherlode lamports changed during swap"
-    );
     let post_swap_sol_balance = gold_vault_sol_info
         .as_associated_token_account(gold_vault_info.key, &SOL_MINT)?
         .amount();
@@ -161,7 +124,7 @@ pub fn process_buy_gold(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramRes
     let distributed = gold_vault.distribute(xaut_amount, treasury.total_unclaimed)?;
     gold_vault.total_sol_swapped = gold_vault
         .total_sol_swapped
-        .checked_add(amount)
+        .checked_add(pre_swap_sol_balance)
         .ok_or(ProgramError::ArithmeticOverflow)?;
     sol_log(
         &format!(
@@ -177,7 +140,7 @@ pub fn process_buy_gold(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramRes
         &[board_info.clone(), godl_program.clone()],
         BuyGoldEvent {
             disc: GodlEvent::BuyGold as u64,
-            sol_amount: amount,
+            sol_amount: pre_swap_sol_balance,
             xaut_amount,
             xaut_distributed: distributed,
             total_unclaimed: treasury.total_unclaimed,

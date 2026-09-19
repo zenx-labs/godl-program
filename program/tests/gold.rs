@@ -2,9 +2,10 @@
 //!
 //! Covers: pro-rata distribution by unrefined GODL, lazy/late `MinerExtended`
 //! creation, the gold sync at the mutation sites (inject, claim GODL,
-//! checkpoint), pending XAUt0 when nothing is unrefined, the legacy checkpoint
-//! expiry / distribution lock, and `BuyGold` end-to-end against a mock swap
-//! program.
+//! checkpoint), pending XAUt0 when nothing is unrefined, the legacy
+//! checkpoint / deploy expiry and distribution lock, `DeployWithMinerExtended`
+//! creating the extended account, and `PreBuyGold` + `BuyGold` end-to-end
+//! against a mock swap program.
 
 mod common;
 
@@ -214,11 +215,11 @@ async fn set_time(ctx: &mut ProgramTestContext, unix_timestamp: i64) {
     ctx.set_sysvar(&clock);
 }
 
-/// Gold distributions are locked until the legacy checkpoint expires; every
+/// Gold distributions are locked until the legacy instructions expire; every
 /// test that distributes starts at that time.
 async fn start_unlocked(env: EnvBuilder) -> ProgramTestContext {
     let mut ctx = env.start().await;
-    set_time(&mut ctx, LEGACY_CHECKPOINT_EXPIRY_TS).await;
+    set_time(&mut ctx, LEGACY_INSTRUCTION_EXPIRY_TS).await;
     ctx
 }
 
@@ -497,7 +498,7 @@ async fn miner_without_unrefined_needs_no_extended_account() {
 }
 
 #[tokio::test]
-async fn checkpoint_creates_extended_account_only_for_winners() {
+async fn checkpoint_requires_extended_account_only_when_settling() {
     let admin = Keypair::new();
     let winner = Keypair::new();
     let loser = Keypair::new();
@@ -539,14 +540,22 @@ async fn checkpoint_creates_extended_account_only_for_winners() {
     assert_eq!(m.checkpoint_id, 1);
     assert_eq!(m.rewards_godl, 0);
 
+    // The winner is about to be credited GODL, so its extended account must already exist;
+    // checkpoint never creates it.
+    let winner_ckpt =
+        || godl_api::sdk::checkpoint_with_miner_extended(winner.pubkey(), winner.pubkey(), 1);
+    assert_custom_err(
+        send(&mut ctx, &[&winner], &[winner_ckpt()]).await,
+        GodlError::MinerExtendedMissing as u32,
+    );
+    let m: Miner = get(&mut ctx, miner_pda(winner.pubkey()).0).await;
+    assert_eq!(m.checkpoint_id, 0, "rejected before touching the miner");
+
+    // Client creates it first (frontend / bot), then checkpoints.
     send(
         &mut ctx,
         &[&winner],
-        &[godl_api::sdk::checkpoint_with_miner_extended(
-            winner.pubkey(),
-            winner.pubkey(),
-            1,
-        )],
+        &[ix_create_ext(&winner, winner.pubkey()), winner_ckpt()],
     )
     .await
     .unwrap();
@@ -614,17 +623,21 @@ async fn buy_gold_swaps_motherlode_sol_and_distributes() {
         AccountMeta::new_readonly(MOCK_SWAP_ID, false),
     ];
     let swap_data = XAUT.to_le_bytes();
+    // `PreBuyGold` + `BuyGold` in one transaction, like `pre_bury` + `bury`.
     let buy = |amount: u64, min_out: u64| {
-        godl_api::sdk::buy_gold(admin.pubkey(), amount, min_out, &swap_accounts, &swap_data)
+        vec![
+            godl_api::sdk::pre_buy_gold(admin.pubkey(), amount),
+            godl_api::sdk::buy_gold(admin.pubkey(), min_out, &swap_accounts, &swap_data),
+        ]
     };
 
-    // Locked while the legacy checkpoint is still alive.
-    set_time(&mut ctx, LEGACY_CHECKPOINT_EXPIRY_TS - 1).await;
+    // Locked while the legacy instructions are still alive.
+    set_time(&mut ctx, LEGACY_INSTRUCTION_EXPIRY_TS - 1).await;
     assert_custom_err(
-        send(&mut ctx, &[&admin], &[buy(LAMPORTS_PER_SOL, 0)]).await,
+        send(&mut ctx, &[&admin], &buy(LAMPORTS_PER_SOL, 0)).await,
         GodlError::GoldDistributionLocked as u32,
     );
-    set_time(&mut ctx, LEGACY_CHECKPOINT_EXPIRY_TS).await;
+    set_time(&mut ctx, LEGACY_INSTRUCTION_EXPIRY_TS).await;
     send(&mut ctx, &[&admin], &[ix_create_ext(&admin, a.pubkey())])
         .await
         .unwrap();
@@ -632,34 +645,58 @@ async fn buy_gold_swaps_motherlode_sol_and_distributes() {
 
     // Over-spending the motherlode ledger is rejected.
     assert_custom_err(
-        send(&mut ctx, &[&admin], &[buy(6 * LAMPORTS_PER_SOL, 0)]).await,
+        send(&mut ctx, &[&admin], &buy(6 * LAMPORTS_PER_SOL, 0)).await,
         GodlError::InsufficientMotherlodeBalance as u32,
     );
 
-    // Slippage guard: the mock pays 1 XAUt0, we demand 2.
+    // Slippage guard: the mock pays 1 XAUt0, we demand 2. The whole pair rolls back.
     assert_custom_err(
-        send(&mut ctx, &[&admin], &[buy(2 * LAMPORTS_PER_SOL, 2 * XAUT)]).await,
+        send(&mut ctx, &[&admin], &buy(2 * LAMPORTS_PER_SOL, 2 * XAUT)).await,
         GodlError::GoldSlippageExceeded as u32,
     );
     let m: SolMotherlode = get(&mut ctx, sol_motherlode_pda().0).await;
     assert_eq!(m.amount, 5 * LAMPORTS_PER_SOL, "failed swap rolled back");
+    assert_eq!(
+        lamports(&mut ctx, sol_motherlode_pda().0).await,
+        motherlode_lamports_before
+    );
 
-    // Only the bury authority may call.
-    let res = send(
+    // Only the bury authority may call either half.
+    assert!(send(
+        &mut ctx,
+        &[&a],
+        &[godl_api::sdk::pre_buy_gold(a.pubkey(), LAMPORTS_PER_SOL)],
+    )
+    .await
+    .is_err());
+    assert!(send(
         &mut ctx,
         &[&a],
         &[godl_api::sdk::buy_gold(
             a.pubkey(),
-            LAMPORTS_PER_SOL,
             0,
             &swap_accounts,
-            &swap_data,
+            &swap_data
         )],
     )
-    .await;
-    assert!(res.is_err());
+    .await
+    .is_err());
 
-    send(&mut ctx, &[&admin], &[buy(2 * LAMPORTS_PER_SOL, XAUT)])
+    // BuyGold alone with an empty WSOL account has nothing to swap.
+    assert!(send(
+        &mut ctx,
+        &[&admin],
+        &[godl_api::sdk::buy_gold(
+            admin.pubkey(),
+            0,
+            &swap_accounts,
+            &swap_data
+        )],
+    )
+    .await
+    .is_err());
+
+    send(&mut ctx, &[&admin], &buy(2 * LAMPORTS_PER_SOL, XAUT))
         .await
         .unwrap();
 
@@ -754,7 +791,7 @@ async fn legacy_checkpoint_layout_works_until_expiry_and_locks_distribution() {
         )
         .start()
         .await;
-    set_time(&mut ctx, LEGACY_CHECKPOINT_EXPIRY_TS - 1).await;
+    set_time(&mut ctx, LEGACY_INSTRUCTION_EXPIRY_TS - 1).await;
 
     // Eight-account legacy layout.
     let ix = godl_api::sdk::checkpoint(winner.pubkey(), winner.pubkey(), 1);
@@ -779,7 +816,7 @@ async fn legacy_checkpoint_layout_works_until_expiry_and_locks_distribution() {
     )
     .await
     .unwrap();
-    set_time(&mut ctx, LEGACY_CHECKPOINT_EXPIRY_TS).await;
+    set_time(&mut ctx, LEGACY_INSTRUCTION_EXPIRY_TS).await;
     send(&mut ctx, &[&admin], &[ix_deposit(&admin, XAUT)])
         .await
         .unwrap();
@@ -827,11 +864,10 @@ async fn legacy_checkpoint_expires_at_cutoff_time() {
     send(
         &mut ctx,
         &[&winner],
-        &[godl_api::sdk::checkpoint_with_miner_extended(
-            winner.pubkey(),
-            winner.pubkey(),
-            1,
-        )],
+        &[
+            ix_create_ext(&winner, winner.pubkey()),
+            godl_api::sdk::checkpoint_with_miner_extended(winner.pubkey(), winner.pubkey(), 1),
+        ],
     )
     .await
     .unwrap();
@@ -839,4 +875,107 @@ async fn legacy_checkpoint_expires_at_cutoff_time() {
     assert_eq!(m.checkpoint_id, 1);
     assert_eq!(m.rewards_godl, 10 * GODL);
     assert!(account_exists(&mut ctx, miner_extended_pda(winner.pubkey()).0).await);
+}
+
+/// A live round 1 (already started, so deploy does not touch the entropy accounts) with an
+/// empty pool round, plus the matching board.
+fn live_round() -> (Round, PoolRound, Board) {
+    let mut round = Round::zeroed();
+    round.id = 1;
+    round.expires_at = 10_000_000_000;
+    let mut pool_round = PoolRound::zeroed();
+    pool_round.id = 1;
+    let mut board = Board::zeroed();
+    board.round_id = 1;
+    board.start_slot = 0;
+    board.end_slot = 10_000_000_000;
+    (round, pool_round, board)
+}
+
+fn ix_deploy_legacy(who: &Keypair) -> Instruction {
+    let mut squares = [false; 25];
+    squares[3] = true;
+    godl_api::sdk::deploy(
+        who.pubkey(),
+        who.pubkey(),
+        Pubkey::new_unique(),
+        LAMPORTS_PER_SOL / 10,
+        1,
+        squares,
+        false,
+    )
+}
+
+fn ix_deploy_gold(who: &Keypair) -> Instruction {
+    let mut squares = [false; 25];
+    squares[3] = true;
+    godl_api::sdk::deploy_with_miner_extended(
+        who.pubkey(),
+        who.pubkey(),
+        Pubkey::new_unique(),
+        LAMPORTS_PER_SOL / 10,
+        1,
+        squares,
+        false,
+    )
+}
+
+/// Legacy `Deploy` works until the cutoff and never touches gold accounts; after the cutoff it
+/// is rejected. `DeployWithMinerExtended` creates the extended account next to the miner and
+/// leaves an existing one alone.
+#[tokio::test]
+async fn deploy_with_miner_extended_creates_extended_account_and_legacy_deploy_expires() {
+    let admin = Keypair::new();
+    let a = Keypair::new();
+    let b = Keypair::new();
+    let (round, pool_round, board) = live_round();
+
+    let mut ctx = gold_env(&admin, &[])
+        .fund(a.pubkey())
+        .fund(b.pubkey())
+        .account(board_pda().0, pod_account(&board))
+        .account(round_pda(1).0, pod_account(&round))
+        .account(pool_round_pda(1).0, pod_account(&pool_round))
+        .start()
+        .await;
+
+    // Legacy deploy before the cutoff: miner created, no extended account.
+    set_time(&mut ctx, LEGACY_INSTRUCTION_EXPIRY_TS - 1).await;
+    assert_eq!(ix_deploy_legacy(&a).accounts.len(), 12);
+    send(&mut ctx, &[&a], &[ix_deploy_legacy(&a)])
+        .await
+        .unwrap();
+    let m: Miner = get(&mut ctx, miner_pda(a.pubkey()).0).await;
+    assert_eq!(m.round_id, 1);
+    assert_eq!(m.deployed[3], LAMPORTS_PER_SOL / 10);
+    assert!(!account_exists(&mut ctx, miner_extended_pda(a.pubkey()).0).await);
+
+    // After the cutoff the legacy layout is rejected before touching anything.
+    set_time(&mut ctx, LEGACY_INSTRUCTION_EXPIRY_TS).await;
+    assert_custom_err(
+        send(&mut ctx, &[&b], &[ix_deploy_legacy(&b)]).await,
+        GodlError::LegacyDeployExpired as u32,
+    );
+    assert!(!account_exists(&mut ctx, miner_pda(b.pubkey()).0).await);
+
+    // The gold-aware deploy creates miner and extended account together.
+    assert_eq!(ix_deploy_gold(&b).accounts.len(), 14);
+    send(&mut ctx, &[&b], &[ix_deploy_gold(&b)]).await.unwrap();
+    let m: Miner = get(&mut ctx, miner_pda(b.pubkey()).0).await;
+    assert_eq!(m.round_id, 1);
+    assert_eq!(m.deployed[3], LAMPORTS_PER_SOL / 10);
+    let ext: MinerExtended = get(&mut ctx, miner_extended_pda(b.pubkey()).0).await;
+    assert_eq!(ext.authority, b.pubkey());
+    assert_eq!(ext.xaut_rewards, 0);
+    let vault: GoldVault = get(&mut ctx, gold_vault_pda().0).await;
+    assert_eq!(ext.xaut_rewards_factor, vault.xaut_rewards_factor);
+
+    // Re-deploying in the same round is still rejected as before, and the extended account
+    // survives untouched.
+    assert_custom_err(
+        send(&mut ctx, &[&b], &[ix_deploy_gold(&b)]).await,
+        GodlError::AlreadyDeployedThisRound as u32,
+    );
+    let ext_again: MinerExtended = get(&mut ctx, miner_extended_pda(b.pubkey()).0).await;
+    assert_eq!(ext_again, ext);
 }

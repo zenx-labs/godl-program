@@ -37,11 +37,19 @@ pub fn process_merge_stake_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
     signer_info.is_signer()?;
     mint_info.has_address(&MINT_ADDRESS)?.as_mint()?;
     target_stake_info.is_writable()?.has_seeds(
-        &[STAKE_V2, &signer_info.key.to_bytes(), &target_id.to_le_bytes()],
+        &[
+            STAKE_V2,
+            &signer_info.key.to_bytes(),
+            &target_id.to_le_bytes(),
+        ],
         &godl_api::ID,
     )?;
     source_stake_info.is_writable()?.has_seeds(
-        &[STAKE_V2, &signer_info.key.to_bytes(), &source_id.to_le_bytes()],
+        &[
+            STAKE_V2,
+            &signer_info.key.to_bytes(),
+            &source_id.to_le_bytes(),
+        ],
         &godl_api::ID,
     )?;
     let target = target_stake_info
@@ -138,7 +146,11 @@ pub fn process_merge_stake_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
             target_tokens_info,
             token_program,
             source_vault_amount,
-            &[STAKE_V2, &signer_info.key.to_bytes(), &source_id.to_le_bytes()],
+            &[
+                STAKE_V2,
+                &signer_info.key.to_bytes(),
+                &source_id.to_le_bytes(),
+            ],
         )?;
     }
 
@@ -148,7 +160,11 @@ pub fn process_merge_stake_v2(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
         signer_info,
         source_stake_info,
         token_program,
-        &[STAKE_V2, &signer_info.key.to_bytes(), &source_id.to_le_bytes()],
+        &[
+            STAKE_V2,
+            &signer_info.key.to_bytes(),
+            &source_id.to_le_bytes(),
+        ],
     )?;
 
     // Log merge.

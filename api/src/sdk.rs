@@ -1352,12 +1352,31 @@ pub fn create_miner_extended(signer: Pubkey, authority: Pubkey) -> Instruction {
     }
 }
 
-/// Swap `amount` lamports from the sol motherlode into XAUt0 through the configured swap program
-/// and distribute the proceeds to unrefined GODL holders. `swap_accounts`/`swap_data` come from
-/// the Jupiter route built with the gold vault PDA as taker, exactly like `bury`.
+/// Move `amount` lamports from the sol motherlode into the gold vault's WSOL account. Send it
+/// right before `buy_gold` in the same transaction (same split as `pre_bury` / `bury`).
+pub fn pre_buy_gold(signer: Pubkey, amount: u64) -> Instruction {
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(signer, true),
+            AccountMeta::new_readonly(config_pda().0, false),
+            AccountMeta::new(sol_motherlode_pda().0, false),
+            AccountMeta::new_readonly(gold_vault_pda().0, false),
+            AccountMeta::new(gold_vault_sol_address(), false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+        data: PreBuyGold {
+            amount: amount.to_le_bytes(),
+        }
+        .to_bytes(),
+    }
+}
+
+/// Swap the gold vault's WSOL into XAUt0 through the configured swap program and distribute the
+/// proceeds to unrefined GODL holders. `swap_accounts`/`swap_data` come from the Jupiter route
+/// built with the gold vault PDA as taker, exactly like `bury`.
 pub fn buy_gold(
     signer: Pubkey,
-    amount: u64,
     min_xaut_out: u64,
     swap_accounts: &[AccountMeta],
     swap_data: &[u8],
@@ -1367,12 +1386,10 @@ pub fn buy_gold(
         AccountMeta::new(board_pda().0, false),
         AccountMeta::new_readonly(config_pda().0, false),
         AccountMeta::new_readonly(treasury_pda().0, false),
-        AccountMeta::new(sol_motherlode_pda().0, false),
         AccountMeta::new(gold_vault_pda().0, false),
         AccountMeta::new(gold_vault_sol_address(), false),
         AccountMeta::new(gold_vault_xaut_address(), false),
         AccountMeta::new_readonly(XAUT_MINT, false),
-        AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new_readonly(spl_token::ID, false),
         AccountMeta::new_readonly(crate::ID, false),
     ];
@@ -1382,7 +1399,6 @@ pub fn buy_gold(
         accounts.push(acc_clone);
     }
     let mut data = BuyGold {
-        amount: amount.to_le_bytes(),
         min_xaut_out: min_xaut_out.to_le_bytes(),
     }
     .to_bytes();
@@ -1450,4 +1466,47 @@ pub fn rebase_total_unclaimed(signer: Pubkey, expected: u64, new_value: u64) -> 
         }
         .to_bytes(),
     }
+}
+
+/// `deploy` with the gold vault and miner extended accounts (inserted before the entropy
+/// accounts); the handler creates the extended account next to the miner. Use this once the
+/// gold rewards program is live; legacy `deploy` expires with legacy `checkpoint`.
+pub fn deploy_with_miner_extended(
+    signer: Pubkey,
+    authority: Pubkey,
+    var_address: Pubkey,
+    amount: u64,
+    round_id: u64,
+    squares: [bool; 25],
+    is_pooled: bool,
+) -> Instruction {
+    let mut ix = build_deploy(
+        signer,
+        authority,
+        var_address,
+        amount,
+        round_id,
+        squares,
+        is_pooled,
+    );
+    // Entropy accounts are the last two; the gold accounts go right before them.
+    let entropy = ix.accounts.split_off(ix.accounts.len() - 2);
+    ix.accounts
+        .push(AccountMeta::new_readonly(gold_vault_pda().0, false));
+    ix.accounts
+        .push(AccountMeta::new(miner_extended_pda(authority).0, false));
+    ix.accounts.extend(entropy);
+    let mut mask: u32 = 0;
+    for (i, &square) in squares.iter().enumerate() {
+        if square {
+            mask |= 1 << i;
+        }
+    }
+    ix.data = DeployWithMinerExtended {
+        amount: amount.to_le_bytes(),
+        squares: mask.to_le_bytes(),
+        is_pooled: is_pooled as u8,
+    }
+    .to_bytes();
+    ix
 }

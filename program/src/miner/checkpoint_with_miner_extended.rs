@@ -9,9 +9,9 @@ use crate::gold::{load_or_create_miner_extended, sync_gold_rewards};
 /// rewards before its unrefined GODL changes.
 ///
 /// Gold-aware counterpart of `process_checkpoint`: same accounts followed by the gold vault and
-/// the miner extended PDA. The legacy instruction is kept for clients that have not migrated
-/// yet and must be retired before the first gold distribution, since it changes `rewards_godl`
-/// without settling gold rewards.
+/// the miner extended PDA. The extended account is never created here; `DeployWithMinerExtended`
+/// creates it next to the miner, and clients run `CreateMinerExtended` first if it is missing.
+/// It only has to exist when there is unrefined GODL to settle or credit.
 pub fn process_checkpoint_with_miner_extended(
     accounts: &[AccountInfo<'_>],
     _data: &[u8],
@@ -215,17 +215,19 @@ pub fn process_checkpoint_with_miner_extended(
     // Checkpoint rewards.
     miner.update_rewards(treasury);
 
-    // Settle gold rewards before `rewards_godl` changes. The extended account only has to
-    // exist once the miner holds (or is about to hold) unrefined GODL, so losing checkpoints of
-    // fresh miners don't pay rent for it.
+    // Settle gold rewards before `rewards_godl` changes. The extended account must already
+    // exist whenever there is unrefined GODL to settle or credit.
     let miner_extended = load_or_create_miner_extended(
         miner_extended_info,
         gold_vault,
         miner.authority,
         signer_info,
         system_program,
-        miner.rewards_godl > 0 || rewards_godl > 0,
+        false,
     )?;
+    if miner_extended.is_none() && (miner.rewards_godl > 0 || rewards_godl > 0) {
+        return Err(GodlError::MinerExtendedMissing.into());
+    }
     sync_gold_rewards(miner_extended, gold_vault, miner);
 
     // Checkpoint miner.

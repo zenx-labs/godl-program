@@ -5,7 +5,10 @@ use solana_sdk::{pubkey::Pubkey, signature::Signer};
 use steel::Instruction;
 
 use crate::{
-    rpc::{get_board, get_clock, get_miner, get_miners, get_round, get_rounds},
+    rpc::{
+        get_board, get_clock, get_miner, get_miner_extended, get_miner_extendeds, get_miners,
+        get_round, get_rounds,
+    },
     transaction::{send_and_confirm_transactions_in_parallel_blocking_v2, submit_transaction},
 };
 
@@ -38,8 +41,19 @@ pub async fn checkpoint(
 ) -> Result<()> {
     let authority = authority.unwrap_or_else(|| payer.pubkey());
     let miner = get_miner(rpc, authority).await?;
-    let ix = godl_api::sdk::checkpoint_with_miner_extended(payer.pubkey(), authority, miner.round_id);
-    submit_transaction(rpc, payer, &[ix]).await?;
+    let mut ixs = Vec::new();
+    if get_miner_extended(rpc, authority).await?.is_none() {
+        ixs.push(godl_api::sdk::create_miner_extended(
+            payer.pubkey(),
+            authority,
+        ));
+    }
+    ixs.push(godl_api::sdk::checkpoint_with_miner_extended(
+        payer.pubkey(),
+        authority,
+        miner.round_id,
+    ));
+    submit_transaction(rpc, payer, &ixs).await?;
     Ok(())
 }
 
@@ -52,6 +66,7 @@ pub async fn checkpoint_all(
 
     let clock = get_clock(rpc).await?;
     let miners = get_miners(rpc).await?;
+    let extended = existing_extended(rpc).await?;
     let mut expiry_slots = HashMap::new();
     let mut ixs = vec![];
 
@@ -80,6 +95,12 @@ pub async fn checkpoint_all(
                     miner.authority,
                     seconds_remaining as f64 * 0.4
                 );
+                if !extended.contains(&miner.authority) {
+                    ixs.push(godl_api::sdk::create_miner_extended(
+                        payer.pubkey(),
+                        miner.authority,
+                    ));
+                }
                 ixs.push(godl_api::sdk::checkpoint_with_miner_extended(
                     payer.pubkey(),
                     miner.authority,
@@ -109,6 +130,7 @@ pub async fn checkpoint_rounds(
 
     let clock = get_clock(rpc).await?;
     let miners = get_miners(rpc).await?;
+    let extended = existing_extended(rpc).await?;
     let rounds = get_rounds(rpc).await?;
     let mut expiry_slots = HashMap::new();
     let mut ixs = vec![];
@@ -140,6 +162,12 @@ pub async fn checkpoint_rounds(
                 miner.authority,
                 seconds_remaining as f64 * 0.4
             );
+            if !extended.contains(&miner.authority) {
+                ixs.push(godl_api::sdk::create_miner_extended(
+                    payer.pubkey(),
+                    miner.authority,
+                ));
+            }
             ixs.push(godl_api::sdk::checkpoint_with_miner_extended(
                 payer.pubkey(),
                 miner.authority,
@@ -253,4 +281,14 @@ pub async fn close_rounds(
     }
 
     Ok(())
+}
+
+/// Authorities that already have a `MinerExtended` account. `CheckpointWithMinerExtended`
+/// never creates it, so the bots prepend `CreateMinerExtended` for anyone missing one.
+async fn existing_extended(rpc: &RpcClient) -> Result<std::collections::HashSet<Pubkey>> {
+    Ok(get_miner_extendeds(rpc)
+        .await?
+        .into_iter()
+        .map(|(_, e)| e.authority)
+        .collect())
 }
