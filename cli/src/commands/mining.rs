@@ -38,7 +38,7 @@ pub async fn checkpoint(
 ) -> Result<()> {
     let authority = authority.unwrap_or_else(|| payer.pubkey());
     let miner = get_miner(rpc, authority).await?;
-    let ix = godl_api::sdk::checkpoint(payer.pubkey(), authority, miner.round_id);
+    let ix = godl_api::sdk::checkpoint_with_miner_extended(payer.pubkey(), authority, miner.round_id);
     submit_transaction(rpc, payer, &[ix]).await?;
     Ok(())
 }
@@ -80,7 +80,7 @@ pub async fn checkpoint_all(
                     miner.authority,
                     seconds_remaining as f64 * 0.4
                 );
-                ixs.push(godl_api::sdk::checkpoint(
+                ixs.push(godl_api::sdk::checkpoint_with_miner_extended(
                     payer.pubkey(),
                     miner.authority,
                     miner.round_id,
@@ -140,7 +140,7 @@ pub async fn checkpoint_rounds(
                 miner.authority,
                 seconds_remaining as f64 * 0.4
             );
-            ixs.push(godl_api::sdk::checkpoint(
+            ixs.push(godl_api::sdk::checkpoint_with_miner_extended(
                 payer.pubkey(),
                 miner.authority,
                 miner.round_id,

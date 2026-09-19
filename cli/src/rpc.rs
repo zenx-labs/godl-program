@@ -233,3 +233,37 @@ pub async fn get_miners_by_authorities(
 pub async fn get_stakes_v2(rpc: &RpcClient) -> Result<Vec<(Pubkey, StakeV2)>> {
     get_program_accounts::<StakeV2>(rpc, godl_api::ID, vec![]).await
 }
+
+/// Get the GoldVault account
+pub async fn get_gold_vault(rpc: &RpcClient) -> Result<GoldVault> {
+    let account = rpc.get_account(&gold_vault_pda().0).await?;
+    let gold_vault = GoldVault::try_from_bytes(&account.data)?;
+    Ok(*gold_vault)
+}
+
+/// Get the SolMotherlode account
+pub async fn get_sol_motherlode(rpc: &RpcClient) -> Result<SolMotherlode> {
+    let account = rpc.get_account(&sol_motherlode_pda().0).await?;
+    let sol_motherlode = SolMotherlode::try_from_bytes(&account.data)?;
+    Ok(*sol_motherlode)
+}
+
+/// Get a MinerExtended account by authority, if it exists
+pub async fn get_miner_extended(rpc: &RpcClient, authority: Pubkey) -> Result<Option<MinerExtended>> {
+    let address = miner_extended_pda(authority).0;
+    match rpc.get_account(&address).await {
+        Ok(account) => Ok(Some(*MinerExtended::try_from_bytes(&account.data)?)),
+        Err(err) => {
+            if matches!(err.kind, ClientErrorKind::RpcError(_)) {
+                Ok(None)
+            } else {
+                Err(anyhow::anyhow!("Failed to get miner extended account: {}", err))
+            }
+        }
+    }
+}
+
+/// Get all MinerExtended accounts
+pub async fn get_miner_extendeds(rpc: &RpcClient) -> Result<Vec<(Pubkey, MinerExtended)>> {
+    get_program_accounts::<MinerExtended>(rpc, godl_api::ID, vec![]).await
+}

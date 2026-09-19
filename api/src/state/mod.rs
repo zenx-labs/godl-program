@@ -2,7 +2,9 @@ mod automation;
 mod automation_v2;
 mod board;
 mod config;
+mod gold_vault;
 mod miner;
+mod miner_extended;
 mod otc_treasury;
 mod otc_user;
 mod pool_member;
@@ -18,7 +20,9 @@ pub use automation::*;
 pub use automation_v2::*;
 pub use board::*;
 pub use config::*;
+pub use gold_vault::*;
 pub use miner::*;
+pub use miner_extended::*;
 pub use otc_treasury::*;
 pub use otc_user::*;
 pub use pool_member::*;
@@ -54,6 +58,8 @@ pub enum GodlAccount {
     StakeV2 = 115,
     OtcTreasury = 118,
     OtcUser = 119,
+    GoldVault = 120,
+    MinerExtended = 121,
 }
 
 #[repr(u8)]
@@ -131,4 +137,20 @@ pub fn otc_treasury_tokens_address() -> Pubkey {
 
 pub fn otc_user_pda(authority: Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[OTC_USER, &authority.to_bytes()], &crate::ID)
+}
+
+pub fn gold_vault_pda() -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[GOLD_VAULT], &crate::ID)
+}
+
+pub fn gold_vault_sol_address() -> Pubkey {
+    spl_associated_token_account::get_associated_token_address(&gold_vault_pda().0, &SOL_MINT)
+}
+
+pub fn gold_vault_xaut_address() -> Pubkey {
+    spl_associated_token_account::get_associated_token_address(&gold_vault_pda().0, &XAUT_MINT)
+}
+
+pub fn miner_extended_pda(authority: Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[MINER_EXTENDED, &authority.to_bytes()], &crate::ID)
 }

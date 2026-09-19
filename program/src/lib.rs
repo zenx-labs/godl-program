@@ -1,5 +1,6 @@
 mod admin;
 mod automation;
+mod gold;
 mod initialize;
 mod miner;
 mod otc;
@@ -9,6 +10,7 @@ mod stake_v2;
 
 use admin::*;
 use automation::*;
+use gold::*;
 use initialize::*;
 use miner::*;
 use otc::*;
@@ -33,6 +35,9 @@ pub fn process_instruction(
         // Miner
         GodlInstruction::Automate => process_automate(accounts, data)?,
         GodlInstruction::Checkpoint => process_checkpoint(accounts, data)?,
+        GodlInstruction::CheckpointWithMinerExtended => {
+            process_checkpoint_with_miner_extended(accounts, data)?
+        }
         GodlInstruction::ClaimSOL => process_claim_sol(accounts, data)?,
         GodlInstruction::ClaimSOLAndFundAutomation => {
             process_claim_sol_and_fund_automation(accounts, data)?
@@ -90,6 +95,14 @@ pub fn process_instruction(
         }
         GodlInstruction::InjectGodlMotherlode => process_inject_godl_motherlode(accounts, data)?,
         GodlInstruction::RebaseTotalStaked => process_rebase_total_staked(accounts, data)?,
+        GodlInstruction::RebaseTotalUnclaimed => process_rebase_total_unclaimed(accounts, data)?,
+
+        // Gold rewards
+        GodlInstruction::InitializeGoldVault => process_initialize_gold_vault(accounts, data)?,
+        GodlInstruction::CreateMinerExtended => process_create_miner_extended(accounts, data)?,
+        GodlInstruction::BuyGold => process_buy_gold(accounts, data)?,
+        GodlInstruction::DepositGold => process_deposit_gold(accounts, data)?,
+        GodlInstruction::ClaimGold => process_claim_gold(accounts, data)?,
 
         // OTC
         GodlInstruction::InitializeOtcTreasury => process_initialize_otc_treasury(accounts, data)?,

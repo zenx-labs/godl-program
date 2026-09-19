@@ -337,6 +337,8 @@ async fn execute_otc_trade_creates_version_1_stake() {
 
     let mut ctx = EnvBuilder::new(admin.pubkey())
         .fund(buyer.pubkey())
+        // The bonus leg syncs gold rewards, so the trade needs the gold vault.
+        .account(gold_vault_pda().0, pod_account(&GoldVault::zeroed()))
         .account(otc_treasury_addr, pod_account(&otc_treasury))
         .account(
             get_associated_token_address(&otc_treasury_addr, &MINT_ADDRESS),

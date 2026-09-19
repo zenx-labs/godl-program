@@ -3,6 +3,8 @@ use solana_program::log::sol_log;
 use spl_token::amount_to_ui_amount;
 use steel::*;
 
+use crate::gold::{load_or_create_miner_extended, sync_gold_rewards};
+
 /// Injects unrefined GODL rewards into a miner account.
 pub fn process_inject_unrefined_rewards(
     accounts: &[AccountInfo<'_>],
@@ -13,7 +15,7 @@ pub fn process_inject_unrefined_rewards(
     let amount = u64::from_le_bytes(args.amount);
 
     // Load accounts.
-    let [signer_info, config_info, miner_info, treasury_info, signer_tokens_info, treasury_tokens_info, token_program] =
+    let [signer_info, config_info, miner_info, treasury_info, signer_tokens_info, treasury_tokens_info, token_program, gold_vault_info, miner_extended_info, system_program] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -37,6 +39,10 @@ pub fn process_inject_unrefined_rewards(
         .is_writable()?
         .as_associated_token_account(&treasury_info.key, &MINT_ADDRESS)?;
     token_program.is_program(&spl_token::ID)?;
+    let gold_vault = gold_vault_info
+        .has_seeds(&[GOLD_VAULT], &godl_api::ID)?
+        .as_account::<GoldVault>(&godl_api::ID)?;
+    system_program.is_program(&system_program::ID)?;
 
     // Basic safety checks.
     if amount == 0 {
@@ -53,7 +59,16 @@ pub fn process_inject_unrefined_rewards(
     )?;
 
     // Update rewards before adding new unrefined rewards.
+    let miner_extended = load_or_create_miner_extended(
+        miner_extended_info,
+        gold_vault,
+        miner_authority,
+        signer_info,
+        system_program,
+        true,
+    )?;
     miner.update_rewards(treasury);
+    sync_gold_rewards(miner_extended, gold_vault, miner);
 
     // Inject unrefined rewards.
     miner.rewards_godl = miner

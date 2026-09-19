@@ -25,7 +25,7 @@ const CHEST_AMOUNT_BPS: u64 = 1000;
 
 /// GODL-managed lookup table; Jupiter doesn't include this in its response so
 /// we fetch it separately and prepend to the route's LUT set.
-const GODL_LUT: Pubkey = pubkey!("CWD8mcpi4QFPZfhgG46cmcytShfEMXWF2gHDjVKaYFce");
+pub(crate) const GODL_LUT: Pubkey = pubkey!("CWD8mcpi4QFPZfhgG46cmcytShfEMXWF2gHDjVKaYFce");
 
 /// How often `bury-listen` polls the treasury balance.
 const POLL_INTERVAL: Duration = Duration::from_secs(30);

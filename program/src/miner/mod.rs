@@ -1,4 +1,5 @@
 mod checkpoint;
+mod checkpoint_with_miner_extended;
 mod claim_godl;
 mod claim_sol;
 mod close;
@@ -9,6 +10,7 @@ mod reset;
 mod reset_permissionless;
 
 pub use checkpoint::*;
+pub use checkpoint_with_miner_extended::*;
 pub use claim_godl::*;
 pub use claim_sol::*;
 pub use close::*;

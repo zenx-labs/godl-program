@@ -161,6 +161,7 @@ pub struct EnvBuilder {
     funded: Vec<Pubkey>,
     token_accounts: Vec<(Pubkey, u64)>,
     extra_accounts: Vec<(Pubkey, Account)>,
+    total_unclaimed: u64,
 }
 
 impl EnvBuilder {
@@ -174,7 +175,14 @@ impl EnvBuilder {
             funded: vec![admin],
             token_accounts: vec![],
             extra_accounts: vec![],
+            total_unclaimed: 0,
         }
+    }
+
+    /// Seed `treasury.total_unclaimed` (the sum of crafted miners' unrefined GODL).
+    pub fn total_unclaimed(mut self, v: u64) -> Self {
+        self.total_unclaimed = v;
+        self
     }
 
     pub fn stake(mut self, spec: StakeSpec) -> Self {
@@ -217,7 +225,14 @@ impl EnvBuilder {
     }
 
     pub async fn start(self) -> ProgramTestContext {
+        self.start_with(|_| {}).await
+    }
+
+    /// Like `start`, with a hook to customize the `ProgramTest` first (e.g. to
+    /// register a mock program with `pt.add_program(..)`).
+    pub async fn start_with(self, hook: impl FnOnce(&mut ProgramTest)) -> ProgramTestContext {
         let mut pt = ProgramTest::new("godl", godl_api::ID, processor!(godl::process_instruction));
+        hook(&mut pt);
 
         let mut config = Config::zeroed();
         config.admin = self.admin;
@@ -227,11 +242,20 @@ impl EnvBuilder {
         pt.add_account(board_pda().0, pod_account(&Board::zeroed()));
 
         // v1 weight is identically the balance (the sqrt curve's 1x fixpoint).
-        let total: u128 = self.stakes.iter().map(|(_, s)| s.units() as u128).sum::<u128>()
-            + self.v1_stakes.iter().map(|(_, b, _)| *b as u128).sum::<u128>();
+        let total: u128 = self
+            .stakes
+            .iter()
+            .map(|(_, s)| s.units() as u128)
+            .sum::<u128>()
+            + self
+                .v1_stakes
+                .iter()
+                .map(|(_, b, _)| *b as u128)
+                .sum::<u128>();
         let mut treasury = Treasury::zeroed();
         treasury.total_staked = u64::try_from(total).unwrap();
         treasury.stake_rewards_factor = self.stake_rewards_factor;
+        treasury.total_unclaimed = self.total_unclaimed;
         let treasury_address = treasury_pda().0;
         pt.add_account(treasury_address, pod_account(&treasury));
 

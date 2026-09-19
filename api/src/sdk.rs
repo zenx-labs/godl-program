@@ -5,7 +5,7 @@ use steel::*;
 use crate::{
     consts::{
         ADMIN_GODL_FEE, BOARD, CHEST_ADDRESS, MINT_ADDRESS, MPL_CORE_PROGRAM, NFT_BOOST_COLLECTION,
-        OTC_ORACLE_SIGNER, RUSH_SOL_VAULT, SOL_MINT,
+        OTC_ORACLE_SIGNER, RUSH_SOL_VAULT, SOL_MINT, XAUT_MINT,
     },
     instruction::*,
     state::*,
@@ -219,6 +219,7 @@ pub fn claim_godl_with_referrer(signer: Pubkey, referrer: Option<Pubkey>) -> Ins
     let recipient_address = get_associated_token_address(&signer, &MINT_ADDRESS);
     let mut accounts = vec![
         AccountMeta::new(signer, true),
+        AccountMeta::new_readonly(config_pda().0, false),
         AccountMeta::new(miner_address, false),
         AccountMeta::new(MINT_ADDRESS, false),
         AccountMeta::new(recipient_address, false),
@@ -227,6 +228,8 @@ pub fn claim_godl_with_referrer(signer: Pubkey, referrer: Option<Pubkey>) -> Ins
         AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new_readonly(spl_token::ID, false),
         AccountMeta::new_readonly(spl_associated_token_account::ID, false),
+        AccountMeta::new_readonly(gold_vault_pda().0, false),
+        AccountMeta::new(miner_extended_pda(signer).0, false),
     ];
     if let Some(referrer_address) = referrer {
         let referrer_tokens_address =
@@ -257,6 +260,9 @@ pub fn inject_unrefined_rewards(signer: Pubkey, miner: Pubkey, amount: u64) -> I
             AccountMeta::new(signer_tokens_address, false),
             AccountMeta::new(treasury_tokens_address, false),
             AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(gold_vault_pda().0, false),
+            AccountMeta::new(miner_extended_pda(miner).0, false),
+            AccountMeta::new_readonly(system_program::ID, false),
         ],
         data: InjectUnrefinedRewards {
             amount: amount.to_le_bytes(),
@@ -677,6 +683,22 @@ pub fn checkpoint(signer: Pubkey, authority: Pubkey, round_id: u64) -> Instructi
         ],
         data: Checkpoint {}.to_bytes(),
     }
+}
+
+/// `checkpoint` with the gold vault and miner extended accounts appended. Use this once the
+/// gold rewards program is live; the legacy layout is kept only for un-migrated clients.
+pub fn checkpoint_with_miner_extended(
+    signer: Pubkey,
+    authority: Pubkey,
+    round_id: u64,
+) -> Instruction {
+    let mut ix = checkpoint(signer, authority, round_id);
+    ix.accounts
+        .push(AccountMeta::new_readonly(gold_vault_pda().0, false));
+    ix.accounts
+        .push(AccountMeta::new(miner_extended_pda(authority).0, false));
+    ix.data = CheckpointWithMinerExtended {}.to_bytes();
+    ix
 }
 
 pub fn set_admin(signer: Pubkey, admin: Pubkey) -> Instruction {
@@ -1245,6 +1267,8 @@ pub fn execute_otc_trade(
             AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(spl_token::ID, false),
             AccountMeta::new_readonly(spl_associated_token_account::ID, false),
+            AccountMeta::new_readonly(gold_vault_pda().0, false),
+            AccountMeta::new(miner_extended_pda(buyer).0, false),
         ],
         data: ExecuteOtcTrade {
             stake_id: stake_id.to_le_bytes(),
@@ -1287,5 +1311,143 @@ pub fn transfer_mint_authority(signer: Pubkey) -> Instruction {
             AccountMeta::new_readonly(spl_token::ID, false),
         ],
         data: TransferMintAuthority {}.to_bytes(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Gold rewards (SOL motherlode -> XAUt0)
+// ---------------------------------------------------------------------------
+
+pub fn initialize_gold_vault(signer: Pubkey) -> Instruction {
+    let gold_vault_address = gold_vault_pda().0;
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(signer, true),
+            AccountMeta::new(gold_vault_address, false),
+            AccountMeta::new(gold_vault_sol_address(), false),
+            AccountMeta::new(gold_vault_xaut_address(), false),
+            AccountMeta::new_readonly(SOL_MINT, false),
+            AccountMeta::new_readonly(XAUT_MINT, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(spl_associated_token_account::ID, false),
+        ],
+        data: InitializeGoldVault {}.to_bytes(),
+    }
+}
+
+/// Permissionless: anyone may create (and pay rent for) a miner's extended account.
+pub fn create_miner_extended(signer: Pubkey, authority: Pubkey) -> Instruction {
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(signer, true),
+            AccountMeta::new_readonly(miner_pda(authority).0, false),
+            AccountMeta::new(miner_extended_pda(authority).0, false),
+            AccountMeta::new_readonly(gold_vault_pda().0, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+        data: CreateMinerExtended {}.to_bytes(),
+    }
+}
+
+/// Swap `amount` lamports from the sol motherlode into XAUt0 through the configured swap program
+/// and distribute the proceeds to unrefined GODL holders. `swap_accounts`/`swap_data` come from
+/// the Jupiter route built with the gold vault PDA as taker, exactly like `bury`.
+pub fn buy_gold(
+    signer: Pubkey,
+    amount: u64,
+    min_xaut_out: u64,
+    swap_accounts: &[AccountMeta],
+    swap_data: &[u8],
+) -> Instruction {
+    let mut accounts = vec![
+        AccountMeta::new(signer, true),
+        AccountMeta::new(board_pda().0, false),
+        AccountMeta::new_readonly(config_pda().0, false),
+        AccountMeta::new_readonly(treasury_pda().0, false),
+        AccountMeta::new(sol_motherlode_pda().0, false),
+        AccountMeta::new(gold_vault_pda().0, false),
+        AccountMeta::new(gold_vault_sol_address(), false),
+        AccountMeta::new(gold_vault_xaut_address(), false),
+        AccountMeta::new_readonly(XAUT_MINT, false),
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new_readonly(spl_token::ID, false),
+        AccountMeta::new_readonly(crate::ID, false),
+    ];
+    for account in swap_accounts.iter() {
+        let mut acc_clone = account.clone();
+        acc_clone.is_signer = false;
+        accounts.push(acc_clone);
+    }
+    let mut data = BuyGold {
+        amount: amount.to_le_bytes(),
+        min_xaut_out: min_xaut_out.to_le_bytes(),
+    }
+    .to_bytes();
+    data.extend_from_slice(swap_data);
+    Instruction {
+        program_id: crate::ID,
+        accounts,
+        data,
+    }
+}
+
+/// Manual-input twin of `buy_gold`: move XAUt0 from the signer into the vault and distribute it.
+pub fn deposit_gold(signer: Pubkey, amount: u64) -> Instruction {
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(signer, true),
+            AccountMeta::new(board_pda().0, false),
+            AccountMeta::new_readonly(config_pda().0, false),
+            AccountMeta::new_readonly(treasury_pda().0, false),
+            AccountMeta::new(gold_vault_pda().0, false),
+            AccountMeta::new(get_associated_token_address(&signer, &XAUT_MINT), false),
+            AccountMeta::new(gold_vault_xaut_address(), false),
+            AccountMeta::new_readonly(XAUT_MINT, false),
+            AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(crate::ID, false),
+        ],
+        data: DepositGold {
+            amount: amount.to_le_bytes(),
+        }
+        .to_bytes(),
+    }
+}
+
+pub fn claim_gold(signer: Pubkey) -> Instruction {
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(signer, true),
+            AccountMeta::new_readonly(miner_pda(signer).0, false),
+            AccountMeta::new(miner_extended_pda(signer).0, false),
+            AccountMeta::new(gold_vault_pda().0, false),
+            AccountMeta::new(gold_vault_xaut_address(), false),
+            AccountMeta::new(get_associated_token_address(&signer, &XAUT_MINT), false),
+            AccountMeta::new_readonly(XAUT_MINT, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(spl_associated_token_account::ID, false),
+        ],
+        data: ClaimGold {}.to_bytes(),
+    }
+}
+
+pub fn rebase_total_unclaimed(signer: Pubkey, expected: u64, new_value: u64) -> Instruction {
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(signer, true),
+            AccountMeta::new_readonly(config_pda().0, false),
+            AccountMeta::new(treasury_pda().0, false),
+        ],
+        data: RebaseTotalUnclaimed {
+            expected: expected.to_le_bytes(),
+            new_value: new_value.to_le_bytes(),
+        }
+        .to_bytes(),
     }
 }

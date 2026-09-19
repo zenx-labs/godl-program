@@ -205,3 +205,77 @@ pub fn print_participating_miners(miners: &[(Pubkey, Miner)]) {
         println!("{}: {}", i, miner.authority);
     }
 }
+
+/// Print GoldVault information
+pub fn print_gold_vault(
+    gold_vault: &GoldVault,
+    gold_vault_address: Pubkey,
+    xaut_balance: u64,
+    sol_motherlode: &SolMotherlode,
+    sol_motherlode_lamports: u64,
+) {
+    println!("Gold vault");
+    println!("  address: {}", gold_vault_address);
+    println!(
+        "  xaut_rewards_factor: {}",
+        gold_vault.xaut_rewards_factor.to_i80f48().to_string()
+    );
+    println!(
+        "  pending_xaut: {} XAUt0",
+        amount_to_ui_amount(gold_vault.pending_xaut, XAUT_DECIMALS)
+    );
+    println!(
+        "  total_xaut_distributed: {} XAUt0",
+        amount_to_ui_amount(gold_vault.total_xaut_distributed, XAUT_DECIMALS)
+    );
+    println!(
+        "  total_xaut_claimed: {} XAUt0",
+        amount_to_ui_amount(gold_vault.total_xaut_claimed, XAUT_DECIMALS)
+    );
+    println!(
+        "  total_sol_swapped: {} SOL",
+        lamports_to_sol(gold_vault.total_sol_swapped)
+    );
+    println!(
+        "  vault XAUt0 balance: {} XAUt0",
+        amount_to_ui_amount(xaut_balance, XAUT_DECIMALS)
+    );
+    println!("Sol motherlode");
+    println!("  amount: {} SOL", lamports_to_sol(sol_motherlode.amount));
+    println!(
+        "  lamports: {} SOL",
+        lamports_to_sol(sol_motherlode_lamports)
+    );
+}
+
+/// Print MinerExtended information
+pub fn print_miner_extended(
+    extended: &MinerExtended,
+    address: Pubkey,
+    unrefined: u64,
+    claimable: u64,
+) {
+    println!("Miner extended");
+    println!("  address: {}", address);
+    println!("  authority: {}", extended.authority);
+    println!(
+        "  xaut_rewards_factor: {}",
+        extended.xaut_rewards_factor.to_i80f48().to_string()
+    );
+    println!(
+        "  unrefined (weight): {} GODL",
+        amount_to_ui_amount(unrefined, TOKEN_DECIMALS)
+    );
+    println!(
+        "  xaut_rewards (settled): {} XAUt0",
+        amount_to_ui_amount(extended.xaut_rewards, XAUT_DECIMALS)
+    );
+    println!(
+        "  claimable now: {} XAUt0",
+        amount_to_ui_amount(claimable, XAUT_DECIMALS)
+    );
+    println!(
+        "  lifetime_xaut: {} XAUt0",
+        amount_to_ui_amount(extended.lifetime_xaut, XAUT_DECIMALS)
+    );
+}

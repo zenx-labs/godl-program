@@ -5,6 +5,7 @@ pub enum GodlEvent {
     Reset = 0,
     Bury = 1,
     Deploy = 2,
+    BuyGold = 3,
 }
 
 #[repr(C)]
@@ -94,6 +95,29 @@ pub struct DeployEvent {
     pub ts: i64,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable, Serialize, Deserialize)]
+pub struct BuyGoldEvent {
+    /// The event discriminator.
+    pub disc: u64,
+
+    /// The amount of SOL swapped (0 for a manual deposit).
+    pub sol_amount: u64,
+
+    /// The amount of XAUt0 received.
+    pub xaut_amount: u64,
+
+    /// The amount of XAUt0 credited to the rewards factor (includes previously pending XAUt0).
+    pub xaut_distributed: u64,
+
+    /// The unrefined GODL supply the distribution was split across.
+    pub total_unclaimed: u64,
+
+    /// The timestamp of the event.
+    pub ts: i64,
+}
+
 event!(ResetEvent);
 event!(BuryEvent);
 event!(DeployEvent);
+event!(BuyGoldEvent);

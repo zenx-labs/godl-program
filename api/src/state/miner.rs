@@ -107,6 +107,10 @@ impl Miner {
         amount
     }
 
+    /// Settles the refined-GODL share this miner is owed by the claim-fee factor, weighted by
+    /// its unrefined GODL (`rewards_godl`). Must be called before `rewards_godl` changes, and
+    /// gold-aware call sites must follow it with `MinerExtended::update_rewards` for the same
+    /// reason.
     pub fn update_rewards(&mut self, treasury: &Treasury) {
         // Accumulate rewards, weighted by stake balance.
         if treasury.miner_rewards_factor > self.rewards_factor {

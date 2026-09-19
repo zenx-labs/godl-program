@@ -1,6 +1,6 @@
 use steel::*;
 
-// ENUM CURSOR: 59
+// ENUM CURSOR: 66
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, TryFromPrimitive)]
 pub enum GodlInstruction {
@@ -76,6 +76,19 @@ pub enum GodlInstruction {
     ClosePhantomStakeV2 = 57,
     TopUpStakeV2 = 58,
     MergeStakeV2 = 59,
+
+    // Gold rewards (SOL motherlode -> XAUt0 for unrefined GODL holders).
+    InitializeGoldVault = 60,
+    CreateMinerExtended = 61,
+    BuyGold = 62,
+    DepositGold = 63,
+    ClaimGold = 64,
+    RebaseTotalUnclaimed = 65,
+    /// `Checkpoint` plus the gold vault and miner extended accounts. The legacy `Checkpoint`
+    /// keeps its account layout for clients that have not migrated yet; it must be retired
+    /// before the first gold distribution because it changes `rewards_godl` without settling
+    /// gold rewards.
+    CheckpointWithMinerExtended = 66,
 }
 
 #[repr(C)]
@@ -394,6 +407,45 @@ pub struct MergeStakeV2 {
     pub source_id: [u8; 8],
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct InitializeGoldVault {}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct CreateMinerExtended {}
+
+/// Instruction data is followed by the raw swap-program instruction data, exactly like `Bury`.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct BuyGold {
+    /// Lamports to move out of the sol motherlode and swap.
+    pub amount: [u8; 8],
+    /// Minimum XAUt0 (base units) the swap must produce.
+    pub min_xaut_out: [u8; 8],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct DepositGold {
+    pub amount: [u8; 8],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct ClaimGold {}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct CheckpointWithMinerExtended {}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct RebaseTotalUnclaimed {
+    pub expected: [u8; 8],
+    pub new_value: [u8; 8],
+}
+
 instruction!(GodlInstruction, Automate);
 instruction!(GodlInstruction, Initialize);
 instruction!(GodlInstruction, Close);
@@ -445,3 +497,10 @@ instruction!(GodlInstruction, CloseStakeV2);
 instruction!(GodlInstruction, ClosePhantomStakeV2);
 instruction!(GodlInstruction, TopUpStakeV2);
 instruction!(GodlInstruction, MergeStakeV2);
+instruction!(GodlInstruction, InitializeGoldVault);
+instruction!(GodlInstruction, CreateMinerExtended);
+instruction!(GodlInstruction, BuyGold);
+instruction!(GodlInstruction, DepositGold);
+instruction!(GodlInstruction, ClaimGold);
+instruction!(GodlInstruction, RebaseTotalUnclaimed);
+instruction!(GodlInstruction, CheckpointWithMinerExtended);

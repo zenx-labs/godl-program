@@ -298,19 +298,9 @@ pub fn process_reset_permissionless(accounts: &[AccountInfo<'_>], _data: &[u8]) 
         treasury.motherlode = rollover_amount;
     }
 
-    // Payout the sol motherlode if it was activated. (drops only SOL, no GODL)
-    if round.did_hit_sol_motherlode(r) {
-        let sol_motherlode_payout = sol_motherlode.amount;
-        if sol_motherlode_payout > 0 {
-            // 10% of the payout goes to the rush SOL vault, the remaining 90% to the round.
-            let rush_amount = sol_motherlode_payout / 10;
-            let round_amount = sol_motherlode_payout - rush_amount;
-            round.total_winnings += round_amount;
-            sol_motherlode_info.send(rush_amount, &rush_sol_vault_info);
-            sol_motherlode_info.send(round_amount, &round_info);
-            sol_motherlode.amount = 0;
-        }
-    }
+    // The sol motherlode no longer pays out on a hit: it accumulates until `BuyGold` swaps it
+    // into XAUt0 for unrefined GODL holders. `rush_sol_vault_info` is kept in the account list
+    // for client compatibility but is unused.
 
     // Mint GODL to the treasury.
     if motherlode_mint_amount > 0 {

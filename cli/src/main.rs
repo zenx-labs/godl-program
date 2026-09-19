@@ -250,6 +250,55 @@ enum Commands {
     TransferMintAuthority,
     SimulateTransferMintAuthority,
     /// Ensure the ProgramData account is large enough for the built binary, extending if needed.
+    /// Create the gold vault PDA and its WSOL / XAUt0 token accounts (deployer only).
+    InitializeGoldVault,
+    /// Show the gold vault, the sol motherlode, and optionally a miner's gold rewards.
+    Gold {
+        #[arg(long, help = "Miner authority address")]
+        authority: Option<Pubkey>,
+    },
+    /// One-shot creation of MinerExtended accounts for every unrefined GODL holder.
+    CreateMinerExtendedAll {
+        #[arg(long, help = "Print the plan without sending transactions")]
+        dry_run: bool,
+        #[arg(
+            long,
+            help = "Create for every miner account, not only unrefined holders and pending checkpoints"
+        )]
+        all: bool,
+    },
+    /// Compare treasury.total_unclaimed with the sum of unrefined GODL over all miners.
+    AuditUnclaimed,
+    /// Admin CAS of treasury.total_unclaimed onto the audited sum.
+    RebaseTotalUnclaimed {
+        #[arg(long, help = "Print the CAS without sending it")]
+        dry_run: bool,
+    },
+    /// Swap SOL from the sol motherlode into XAUt0 and distribute it to unrefined holders.
+    BuyGold {
+        #[arg(long, help = "Amount in SOL to swap")]
+        amount: f64,
+        #[arg(long, default_value_t = 0.0, help = "Minimum XAUt0 to accept (decimal)")]
+        min_out: f64,
+        #[arg(long, help = "Comma-separated Jupiter DEX labels to restrict routing")]
+        dexes: Option<String>,
+    },
+    /// Poll the sol motherlode and buy gold whenever it holds at least `amount` SOL.
+    BuyGoldListen {
+        #[arg(long, help = "Amount in SOL to swap per buy")]
+        amount: f64,
+        #[arg(long, default_value_t = 0.0, help = "Minimum XAUt0 to accept (decimal)")]
+        min_out: f64,
+        #[arg(long, help = "Comma-separated Jupiter DEX labels to restrict routing")]
+        dexes: Option<String>,
+    },
+    /// Move XAUt0 from the signer into the gold vault and distribute it (bury authority).
+    DepositGold {
+        #[arg(long, help = "Amount of XAUt0 to deposit (decimal)")]
+        amount: f64,
+    },
+    /// Claim the XAUt0 earned on unrefined GODL.
+    ClaimGold,
     ExtendProgram {
         #[arg(
             long,
@@ -474,6 +523,43 @@ async fn main() -> Result<(), anyhow::Error> {
         }
         Commands::SimulateTransferMintAuthority => {
             simulate_transfer_mint_authority(&rpc, &payer).await?;
+        }
+        Commands::InitializeGoldVault => {
+            initialize_gold_vault(&rpc, &payer).await?;
+        }
+        Commands::Gold { authority } => {
+            gold_info(&rpc, authority).await?;
+        }
+        Commands::CreateMinerExtendedAll { dry_run, all } => {
+            create_miner_extended_all(&rpc, &payer, dry_run, all).await?;
+        }
+        Commands::AuditUnclaimed => {
+            audit_unclaimed(&rpc).await?;
+        }
+        Commands::RebaseTotalUnclaimed { dry_run } => {
+            rebase_total_unclaimed(&rpc, &payer, dry_run).await?;
+        }
+        Commands::BuyGold {
+            amount,
+            min_out,
+            ref dexes,
+        } => {
+            let jup = build_jupiter_client(&cli)?;
+            buy_gold(&rpc, &payer, amount, min_out, dexes.as_deref(), &jup).await?;
+        }
+        Commands::BuyGoldListen {
+            amount,
+            min_out,
+            ref dexes,
+        } => {
+            let jup = build_jupiter_client(&cli)?;
+            buy_gold_listen(&rpc, &payer, amount, min_out, dexes.as_deref(), &jup).await?;
+        }
+        Commands::DepositGold { amount } => {
+            deposit_gold(&rpc, &payer, amount).await?;
+        }
+        Commands::ClaimGold => {
+            claim_gold(&rpc, &payer).await?;
         }
         Commands::ExtendProgram {
             so_path,

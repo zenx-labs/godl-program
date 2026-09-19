@@ -65,23 +65,41 @@ impl JupiterClient {
         payer: Pubkey,
         amount: u64,
     ) -> Result<SwapBuild> {
+        self.build_sol_swap(taker, payer, amount, GODL_MINT, Some(DEXES_ALLOWLIST))
+            .await
+    }
+
+    /// GET `/build` for a SOL → `output_mint` swap with the taker's WSOL ATA
+    /// already funded by the caller (`wrapAndUnwrapSol=false`). `dexes`
+    /// optionally restricts routing (comma-separated Jupiter DEX labels).
+    pub async fn build_sol_swap(
+        &self,
+        taker: Pubkey,
+        payer: Pubkey,
+        amount: u64,
+        output_mint: Pubkey,
+        dexes: Option<&str>,
+    ) -> Result<SwapBuild> {
         let url = format!("{}/build", self.base_url);
 
+        let mut query = vec![
+            ("inputMint", WSOL_MINT.to_string()),
+            ("outputMint", output_mint.to_string()),
+            ("amount", amount.to_string()),
+            ("taker", taker.to_string()),
+            ("payer", payer.to_string()),
+            ("maxAccounts", MAX_ACCOUNTS.to_string()),
+            ("slippageBps", "rtse".to_string()),
+            ("wrapAndUnwrapSol", "false".to_string()),
+        ];
+        if let Some(dexes) = dexes {
+            query.push(("dexes", dexes.to_string()));
+        }
         let resp = self
             .http
             .get(&url)
             .header("x-api-key", &self.api_key)
-            .query(&[
-                ("inputMint", WSOL_MINT.to_string()),
-                ("outputMint", GODL_MINT.to_string()),
-                ("amount", amount.to_string()),
-                ("taker", taker.to_string()),
-                ("payer", payer.to_string()),
-                ("maxAccounts", MAX_ACCOUNTS.to_string()),
-                ("slippageBps", "rtse".to_string()),
-                ("wrapAndUnwrapSol", "false".to_string()),
-                ("dexes", DEXES_ALLOWLIST.to_string()),
-            ])
+            .query(&query)
             .send()
             .await?;
 

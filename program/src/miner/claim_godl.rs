@@ -3,11 +3,13 @@ use solana_program::log::sol_log;
 use spl_token::amount_to_ui_amount;
 use steel::*;
 
+use crate::gold::{load_or_create_miner_extended, sync_gold_rewards};
+
 /// Claims a block reward.
 pub fn process_claim_godl(accounts: &[AccountInfo<'_>], _data: &[u8]) -> ProgramResult {
     // Load accounts.
     let clock = Clock::get()?;
-    let [signer_info, _config_info, miner_info, mint_info, recipient_info, treasury_info, treasury_tokens_info, system_program, token_program, associated_token_program, rest @ ..] =
+    let [signer_info, _config_info, miner_info, mint_info, recipient_info, treasury_info, treasury_tokens_info, system_program, token_program, associated_token_program, gold_vault_info, miner_extended_info, rest @ ..] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -23,6 +25,17 @@ pub fn process_claim_godl(accounts: &[AccountInfo<'_>], _data: &[u8]) -> Program
     system_program.is_program(&system_program::ID)?;
     token_program.is_program(&spl_token::ID)?;
     associated_token_program.is_program(&spl_associated_token_account::ID)?;
+    let gold_vault = gold_vault_info
+        .has_seeds(&[GOLD_VAULT], &godl_api::ID)?
+        .as_account::<GoldVault>(&godl_api::ID)?;
+    let miner_extended = load_or_create_miner_extended(
+        miner_extended_info,
+        gold_vault,
+        miner.authority,
+        signer_info,
+        system_program,
+        miner.rewards_godl > 0,
+    )?;
 
     // Load recipient.
     if recipient_info.data_is_empty() {
@@ -38,6 +51,9 @@ pub fn process_claim_godl(accounts: &[AccountInfo<'_>], _data: &[u8]) -> Program
     } else {
         recipient_info.as_associated_token_account(signer_info.key, mint_info.key)?;
     }
+
+    // Settle gold rewards on the pre-claim unrefined balance, then claim (which zeroes it).
+    sync_gold_rewards(miner_extended, gold_vault, miner);
 
     // Normalize amount.
     let amount = miner.claim_godl(&clock, treasury);

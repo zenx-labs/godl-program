@@ -3,7 +3,10 @@ use solana_program::{log::sol_log, native_token::lamports_to_sol};
 use spl_token::amount_to_ui_amount;
 use steel::*;
 
-use crate::stake_v2::stake_multiplier;
+use crate::{
+    gold::{load_or_create_miner_extended, sync_gold_rewards},
+    stake_v2::stake_multiplier,
+};
 
 /// Executes an OTC quote signed by both the buyer and the OTC oracle.
 ///
@@ -23,7 +26,7 @@ pub fn process_execute_otc_trade(accounts: &[AccountInfo<'_>], data: &[u8]) -> P
 
     // Load accounts.
     let clock = Clock::get()?;
-    let [buyer_info, oracle_info, mint_info, miner_info, otc_user_info, otc_treasury_info, otc_treasury_tokens_info, treasury_info, treasury_tokens_info, stake_info, stake_tokens_info, system_program, token_program, associated_token_program] =
+    let [buyer_info, oracle_info, mint_info, miner_info, otc_user_info, otc_treasury_info, otc_treasury_tokens_info, treasury_info, treasury_tokens_info, stake_info, stake_tokens_info, system_program, token_program, associated_token_program, gold_vault_info, miner_extended_info] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -64,6 +67,10 @@ pub fn process_execute_otc_trade(accounts: &[AccountInfo<'_>], data: &[u8]) -> P
     system_program.is_program(&system_program::ID)?;
     token_program.is_program(&spl_token::ID)?;
     associated_token_program.is_program(&spl_associated_token_account::ID)?;
+    let gold_vault = gold_vault_info
+        .has_seeds(&[GOLD_VAULT], &godl_api::ID)?
+        .as_account::<GoldVault>(&godl_api::ID)?;
+    miner_extended_info.has_seeds(&[MINER_EXTENDED, &buyer_info.key.to_bytes()], &godl_api::ID)?;
 
     // Quote-expiry guard. The oracle attaches a slot horizon so a stale signed
     // quote can't be replayed after the price has moved.
@@ -252,7 +259,16 @@ pub fn process_execute_otc_trade(accounts: &[AccountInfo<'_>], data: &[u8]) -> P
             &[OTC_TREASURY],
         )?;
 
+        let miner_extended = load_or_create_miner_extended(
+            miner_extended_info,
+            gold_vault,
+            *buyer_info.key,
+            buyer_info,
+            system_program,
+            true,
+        )?;
         miner.update_rewards(treasury);
+        sync_gold_rewards(miner_extended, gold_vault, miner);
         miner.rewards_godl = miner
             .rewards_godl
             .checked_add(godl_bonus)

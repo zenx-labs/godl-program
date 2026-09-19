@@ -62,6 +62,12 @@ pub enum GodlError {
 
     #[error("V1 staking deposits are disabled; use DepositV2")]
     StakeV1Deprecated = 19,
+
+    #[error("Gold swap produced less XAUt0 than the minimum")]
+    GoldSlippageExceeded = 20,
+
+    #[error("Insufficient sol motherlode balance")]
+    InsufficientMotherlodeBalance = 21,
 }
 
 error!(GodlError);

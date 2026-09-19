@@ -168,3 +168,21 @@ pub const OTC_ORACLE_SIGNER: Pubkey = pubkey!("otcSPJAKfmCgMmFkKUGk2kjwSQLSCHw5M
 
 /// Rush SOL vault
 pub const RUSH_SOL_VAULT: Pubkey = pubkey!("SoLt2Jgpqyt5memkregKW6daYFJ7xG2DAJTLSveeidY");
+
+/// The seed of the gold vault account PDA.
+pub const GOLD_VAULT: &[u8] = b"gold_vault";
+
+/// The seed of the miner extended account PDA.
+pub const MINER_EXTENDED: &[u8] = b"miner_ext";
+
+/// The address of the XAUt0 (Tether Gold) mint.
+pub const XAUT_MINT: Pubkey = pubkey!("AymATz4TCL9sWNEEV9Kvyz45CHVhDZ6kUgjTJPzLpU9P");
+
+/// The decimal precision of the XAUt0 token.
+pub const XAUT_DECIMALS: u8 = 6;
+
+/// Fixed-point scale applied to the gold rewards factor.
+///
+/// The factor is stored as "XAUT base units per gram of unrefined GODL, times this scale" so a
+/// small distribution against a large unrefined supply keeps enough fractional bits in I80F48.
+pub const GOLD_FACTOR_SCALE: u64 = 1_000_000;
