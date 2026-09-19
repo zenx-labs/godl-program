@@ -191,8 +191,7 @@ pub const GOLD_FACTOR_SCALE: u64 = 1_000_000;
 /// and gold distributions (`PreBuyGold` / `BuyGold` / `DepositGold`) become possible.
 ///
 /// The legacy layouts change a miner's unrefined GODL (or create miners) without the gold
-/// accounts, so they must be dead before the first distribution. Set this to the upgrade time
-/// plus six hours (`6 * ONE_HOUR`) right before building the release; clients have until then
-/// to migrate to `CheckpointWithMinerExtended` / `DeployWithMinerExtended`. Seeded from the
-/// mainnet clock (1789815626) on 2026-09-19.
-pub const LEGACY_INSTRUCTION_EXPIRY_TS: i64 = 1_789_815_626 + 6 * ONE_HOUR;
+/// accounts, so they must be dead before the first distribution. Clients have until then to
+/// migrate to `CheckpointWithMinerExtended` / `DeployWithMinerExtended`. Set from the mainnet
+/// clock (1789839440, 2026-09-19 17:37:20 UTC) plus 90 minutes.
+pub const LEGACY_INSTRUCTION_EXPIRY_TS: i64 = 1_789_839_440 + 90 * ONE_MINUTE;
