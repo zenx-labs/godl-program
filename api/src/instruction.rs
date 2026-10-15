@@ -1,6 +1,6 @@
 use steel::*;
 
-// ENUM CURSOR: 68
+// ENUM CURSOR: 69
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, TryFromPrimitive)]
 pub enum GodlInstruction {
@@ -95,6 +95,10 @@ pub enum GodlInstruction {
     /// `Deploy` plus the gold vault and miner extended accounts; creates the extended account
     /// next to the miner. Legacy `Deploy` expires with legacy `Checkpoint`.
     DeployWithMinerExtended = 68,
+    /// Sets the round length and intermission (in slots) in `Config`, admin only. The first
+    /// call after the upgrade that added those fields also grows the config account to the
+    /// current layout.
+    UpdateProtocolConfig = 69,
 }
 
 #[repr(C)]
@@ -213,6 +217,13 @@ pub struct SetFeeCollector {
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct SetGodlPerRound {
     pub godl_per_round: [u8; 8],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct UpdateProtocolConfig {
+    pub round_slots: [u8; 8],
+    pub intermission_slots: [u8; 8],
 }
 
 #[repr(C)]
@@ -525,3 +536,4 @@ instruction!(GodlInstruction, RebaseTotalUnclaimed);
 instruction!(GodlInstruction, CheckpointWithMinerExtended);
 instruction!(GodlInstruction, PreBuyGold);
 instruction!(GodlInstruction, DeployWithMinerExtended);
+instruction!(GodlInstruction, UpdateProtocolConfig);

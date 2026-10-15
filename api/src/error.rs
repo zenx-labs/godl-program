@@ -80,6 +80,9 @@ pub enum GodlError {
 
     #[error("Legacy deploy has expired; use DeployWithMinerExtended")]
     LegacyDeployExpired = 25,
+
+    #[error("Protocol config value is out of range")]
+    InvalidProtocolConfig = 26,
 }
 
 error!(GodlError);

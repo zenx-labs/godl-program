@@ -82,6 +82,8 @@ pub fn process_initialize(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramR
     config.var_address = Pubkey::default();
     config.godl_per_round = godl_per_round;
     config.motherlode_denominator = 5;
+    config.round_slots = ROUND_SLOTS;
+    config.intermission_slots = INTERMISSION_SLOTS;
 
     // Initialize treasury.
     let treasury = treasury_info.as_account_mut::<Treasury>(&godl_api::ID)?;

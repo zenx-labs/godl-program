@@ -92,6 +92,7 @@ pub fn process_instruction(
             process_set_motherlode_denominator(accounts, data)?
         }
         GodlInstruction::SetGodlPerRound => process_set_godl_per_round(accounts, data)?,
+        GodlInstruction::UpdateProtocolConfig => process_update_protocol_config(accounts, data)?,
         GodlInstruction::WithdrawVault => process_withdraw_vault(accounts, data)?,
         GodlInstruction::InitializeSolMotherlode => {
             process_initialize_sol_motherlode(accounts, data)?

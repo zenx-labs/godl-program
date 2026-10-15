@@ -37,7 +37,14 @@ pub const ONE_DAY_SLOTS: u64 = 24 * ONE_HOUR_SLOTS;
 /// The number of slots in one week.
 pub const ONE_WEEK_SLOTS: u64 = 7 * ONE_DAY_SLOTS;
 
-/// The number of slots for breather between rounds.
+/// The default number of mining slots in one round. The live value is `Config::round_slots`
+/// (set with `UpdateProtocolConfig`); this constant seeds `Initialize` and backs an unset
+/// (zero) config field.
+pub const ROUND_SLOTS: u64 = ONE_MINUTE_SLOTS;
+
+/// The default number of slots for breather between rounds. The live value is
+/// `Config::intermission_slots` (set with `UpdateProtocolConfig`); this constant seeds
+/// `Initialize` and backs an unset (zero) config field.
 pub const INTERMISSION_SLOTS: u64 = 25;
 
 /// The maximum token supply (2.1 million).
@@ -114,6 +121,10 @@ pub const ADMIN_FEE_BPS: u64 = 50;
 
 /// Sol motherlode fee in basis points.
 pub const SOL_MOTHERLODE_BPS: u64 = 100;
+
+/// Share of every SOL motherlode withdrawal (`PreBuyGold`) that goes to the rush SOL vault, in
+/// basis points. The rest is swapped into XAUt0 gold rewards by `BuyGold`.
+pub const RUSH_SOL_MOTHERLODE_BPS: u64 = 1_000; // 10%
 
 /// Referral share in basis points.
 pub const REFERRAL_BPS: u64 = 50;

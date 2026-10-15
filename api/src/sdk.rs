@@ -749,6 +749,27 @@ pub fn set_godl_per_round(signer: Pubkey, godl_per_round: u64) -> Instruction {
     }
 }
 
+pub fn update_protocol_config(
+    signer: Pubkey,
+    round_slots: u64,
+    intermission_slots: u64,
+) -> Instruction {
+    let config_address = config_pda().0;
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(signer, true),
+            AccountMeta::new(config_address, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+        data: UpdateProtocolConfig {
+            round_slots: round_slots.to_le_bytes(),
+            intermission_slots: intermission_slots.to_le_bytes(),
+        }
+        .to_bytes(),
+    }
+}
+
 pub fn set_fee_collector(signer: Pubkey, fee_collector: Pubkey) -> Instruction {
     let config_address = config_pda().0;
     Instruction {
@@ -1364,6 +1385,7 @@ pub fn pre_buy_gold(signer: Pubkey, amount: u64) -> Instruction {
             AccountMeta::new_readonly(gold_vault_pda().0, false),
             AccountMeta::new(gold_vault_sol_address(), false),
             AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new(RUSH_SOL_VAULT, false),
         ],
         data: PreBuyGold {
             amount: amount.to_le_bytes(),

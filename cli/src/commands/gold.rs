@@ -423,9 +423,12 @@ async fn execute_buy_gold(
     }
     let _ = get_board(rpc).await?;
 
-    // `buy_gold` asserts the vault's WSOL account is fully consumed, so the route has to be
-    // quoted for everything that will be in it after `pre_buy_gold` + sync: the requested
-    // amount plus any lamports already sitting above rent (dust, donations).
+    // `pre_buy_gold` sends 10% of `amount` to the rush SOL vault; only the other 90% reaches the
+    // vault's WSOL account. `buy_gold` asserts that account is fully consumed, so the route has
+    // to be quoted for everything that will be in it after `pre_buy_gold` + sync: the gold share
+    // plus any lamports already sitting above rent (dust, donations).
+    let (rush_amount, swap_amount) =
+        SolMotherlode::split_payout(amount).context("amount overflow")?;
     let gold_vault_address = gold_vault_pda().0;
     let wsol_rent = rpc
         .get_minimum_balance_for_rent_exemption(spl_token::state::Account::LEN)
@@ -435,7 +438,7 @@ async fn execute_buy_gold(
         .await
         .map(|acc| acc.lamports.saturating_sub(wsol_rent))
         .unwrap_or(0);
-    let quote_amount = amount
+    let quote_amount = swap_amount
         .checked_add(wsol_dust)
         .context("swap amount overflow")?;
     if wsol_dust > 0 {
@@ -475,8 +478,9 @@ async fn execute_buy_gold(
 
     submit_transaction_with_address_lookup_tables(rpc, payer, &ixs, lut_accounts).await?;
     println!(
-        "Bought gold with {} SOL from the sol motherlode",
-        quote_amount as f64 / LAMPORTS_PER_SOL as f64
+        "Bought gold with {} SOL from the sol motherlode ({} SOL sent to the rush vault)",
+        quote_amount as f64 / LAMPORTS_PER_SOL as f64,
+        rush_amount as f64 / LAMPORTS_PER_SOL as f64
     );
     Ok(())
 }

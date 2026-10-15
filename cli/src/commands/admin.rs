@@ -2,6 +2,9 @@ use anyhow::Result;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{keccak, pubkey::Pubkey, signature::Signer};
 
+use godl_api::prelude::*;
+use steel::AccountDeserialize;
+
 use crate::transaction::submit_transaction;
 
 /// Set admin authority
@@ -54,6 +57,47 @@ pub async fn set_godl_per_round(
     godl_per_round: u64,
 ) -> Result<()> {
     let ix = godl_api::sdk::set_godl_per_round(payer.pubkey(), godl_per_round);
+    submit_transaction(rpc, payer, &[ix]).await?;
+    Ok(())
+}
+
+/// Set the round length and intermission in slots (admin only). An omitted value keeps the
+/// current on-chain one. A config account still on the pre-timing layout cannot be parsed; it
+/// reports the compile-time defaults as current and is grown by the instruction itself.
+pub async fn update_protocol_config(
+    rpc: &RpcClient,
+    payer: &solana_sdk::signer::keypair::Keypair,
+    round_slots: Option<u64>,
+    intermission_slots: Option<u64>,
+) -> Result<()> {
+    let account = rpc.get_account(&config_pda().0).await?;
+    let (current_round_slots, current_intermission_slots) =
+        match Config::try_from_bytes(&account.data) {
+            Ok(config) => (config.round_slots(), config.intermission_slots()),
+            Err(_) => {
+                println!(
+                    "  config account is on the legacy layout ({} bytes); it will be resized",
+                    account.data.len()
+                );
+                (ROUND_SLOTS, INTERMISSION_SLOTS)
+            }
+        };
+    let new_round_slots = round_slots.unwrap_or(current_round_slots);
+    let new_intermission_slots = intermission_slots.unwrap_or(current_intermission_slots);
+    println!("Update Protocol Config");
+    println!(
+        "  round_slots: {} -> {}",
+        current_round_slots, new_round_slots
+    );
+    println!(
+        "  intermission_slots: {} -> {}",
+        current_intermission_slots, new_intermission_slots
+    );
+    let ix = godl_api::sdk::update_protocol_config(
+        payer.pubkey(),
+        new_round_slots,
+        new_intermission_slots,
+    );
     submit_transaction(rpc, payer, &[ix]).await?;
     Ok(())
 }

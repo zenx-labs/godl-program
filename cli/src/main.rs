@@ -173,6 +173,18 @@ enum Commands {
         #[arg(long, help = "New godl per round value")]
         godl_per_round: u64,
     },
+    UpdateProtocolConfig {
+        #[arg(
+            long,
+            help = "Mining slots per round (defaults to the current on-chain value)"
+        )]
+        round_slots: Option<u64>,
+        #[arg(
+            long,
+            help = "Intermission slots after end_slot (defaults to the current on-chain value)"
+        )]
+        intermission_slots: Option<u64>,
+    },
     SetSwapProgram {
         #[arg(long, help = "Swap program address")]
         swap_program: Pubkey,
@@ -456,6 +468,12 @@ async fn main() -> Result<(), anyhow::Error> {
         }
         Commands::SetGodlPerRound { godl_per_round } => {
             set_godl_per_round(&rpc, &payer, godl_per_round).await?;
+        }
+        Commands::UpdateProtocolConfig {
+            round_slots,
+            intermission_slots,
+        } => {
+            update_protocol_config(&rpc, &payer, round_slots, intermission_slots).await?;
         }
         Commands::SetSwapProgram { swap_program } => {
             set_swap_program(&rpc, &payer, swap_program).await?;

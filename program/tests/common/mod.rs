@@ -6,8 +6,12 @@
 //! driven through `Initialize` (which requires the mainnet deployer key).
 #![allow(dead_code)]
 
+use entropy_api::state::Var;
 use godl_api::prelude::*;
-use solana_program_test::{processor, BanksClientError, ProgramTest, ProgramTestContext};
+use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult};
+use solana_program_test::{
+    processor, BanksClientError, EbpfVm, InvokeContext, ProgramTest, ProgramTestContext,
+};
 use solana_sdk::{
     account::Account,
     instruction::InstructionError,
@@ -310,6 +314,70 @@ impl EnvBuilder {
 
         pt.start_with_context().await
     }
+}
+
+// ---------------------------------------------------------------------------
+// Mock programs
+// ---------------------------------------------------------------------------
+
+/// The runtime's builtin entrypoint type (`BuiltinFunctionWithContext`, which program-test
+/// does not re-export).
+pub type BuiltinFn = for<'a> fn(*mut EbpfVm<'a, InvokeContext<'static>>, u64, u64, u64, u64, u64);
+
+/// `processor!` yields an `Option<closure>` that only coerces to the fn pointer where the
+/// expected type is known. This pins it so mocks can be registered with `add_builtin_program`,
+/// which works both natively and under `test-sbf` (`add_program` insists on a mock `.so` there).
+pub fn builtin(f: Option<BuiltinFn>) -> BuiltinFn {
+    f.unwrap()
+}
+
+// ---------------------------------------------------------------------------
+// Round fixtures: mock entropy program, entropy var, config
+// ---------------------------------------------------------------------------
+
+/// Stand-in for the entropy program: `Deploy` bumps the var through it when a round opens and
+/// `Reset` only checks that it is the executable at `entropy_api::ID`. Register it with
+/// `start_with(|pt| pt.add_builtin_program("mock_entropy", entropy_api::ID, builtin(processor!(mock_entropy))))`.
+pub fn mock_entropy(
+    _program_id: &Pubkey,
+    _accounts: &[AccountInfo],
+    _data: &[u8],
+) -> ProgramResult {
+    Ok(())
+}
+
+/// A finalized entropy var owned by `authority` (the board) whose `value` is the round's RNG
+/// input. An all-ones value makes `Round::rng` return `None` (refund path).
+pub fn entropy_var_account(authority: Pubkey, value: [u8; 32]) -> Account {
+    let mut var = Var::zeroed();
+    var.authority = authority;
+    var.commit = [1; 32];
+    var.seed = [2; 32];
+    var.slot_hash = [3; 32];
+    var.value = value;
+    var.samples = 10;
+    let mut data = vec![0u8; 8 + core::mem::size_of::<Var>()];
+    data[0] = Var::discriminator();
+    data[8..].copy_from_slice(bytemuck::bytes_of(&var));
+    Account {
+        lamports: 10_000_000_000,
+        data,
+        owner: entropy_api::ID,
+        executable: false,
+        rent_epoch: 0,
+    }
+}
+
+/// A config whose admin is also the bury authority and fee collector, pointing at
+/// `var_address`. `godl_per_round` stays 0 so a reset mints nothing (no godl-mint CPI).
+pub fn round_config(admin: Pubkey, var_address: Pubkey) -> Config {
+    let mut c = Config::zeroed();
+    c.admin = admin;
+    c.bury_authority = admin;
+    c.fee_collector = admin;
+    c.var_address = var_address;
+    c.motherlode_denominator = 5;
+    c
 }
 
 // ---------------------------------------------------------------------------

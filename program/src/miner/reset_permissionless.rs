@@ -34,10 +34,10 @@ pub fn process_reset_permissionless(accounts: &[AccountInfo<'_>], _data: &[u8]) 
         return Err(ProgramError::NotEnoughAccountKeys);
     };
     signer_info.is_signer()?;
+    let config = config_info.as_account::<Config>(&godl_api::ID)?;
     let board = board_info
         .as_account_mut::<Board>(&godl_api::ID)?
-        .assert_mut(|b| clock.slot >= b.end_slot + INTERMISSION_SLOTS)?;
-    let config = config_info.as_account::<Config>(&godl_api::ID)?;
+        .assert_mut(|b| clock.slot >= b.end_slot.saturating_add(config.intermission_slots()))?;
     fee_collector_info
         .is_writable()?
         .has_address(&config.fee_collector)?;

@@ -13,6 +13,7 @@ mod set_motherlode_denominator;
 mod set_swap_program;
 mod set_var_address;
 mod transfer_mint_authority;
+mod update_protocol_config;
 mod withdraw_vault;
 
 pub use bury::*;
@@ -30,4 +31,5 @@ pub use set_motherlode_denominator::*;
 pub use set_swap_program::*;
 pub use set_var_address::*;
 pub use transfer_mint_authority::*;
+pub use update_protocol_config::*;
 pub use withdraw_vault::*;

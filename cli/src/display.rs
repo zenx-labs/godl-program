@@ -42,6 +42,8 @@ pub fn print_config(config: &Config) {
         "  motherlode_denominator: {}",
         config.motherlode_denominator
     );
+    println!("  round_slots: {}", config.round_slots());
+    println!("  intermission_slots: {}", config.intermission_slots());
 }
 
 /// Print Treasury information

@@ -607,8 +607,12 @@ async fn buy_gold_swaps_motherlode_sol_and_distributes() {
             pool_xaut,
             spl_token_account(XAUT_MINT, &pool_auth, 10 * XAUT, false),
         )
-        .start_with(|pt| pt.add_program("mock_swap", MOCK_SWAP_ID, processor!(mock_swap)))
+        .account(RUSH_SOL_VAULT, system_account(LAMPORTS_PER_SOL))
+        .start_with(|pt| {
+            pt.add_builtin_program("mock_swap", MOCK_SWAP_ID, builtin(processor!(mock_swap)))
+        })
         .await;
+    let rush_lamports_before = lamports(&mut ctx, RUSH_SOL_VAULT).await;
 
     let swap_accounts = vec![
         AccountMeta::new(gold_vault, false),
@@ -660,6 +664,10 @@ async fn buy_gold_swaps_motherlode_sol_and_distributes() {
         lamports(&mut ctx, sol_motherlode_pda().0).await,
         motherlode_lamports_before
     );
+    assert_eq!(
+        lamports(&mut ctx, RUSH_SOL_VAULT).await,
+        rush_lamports_before
+    );
 
     // Only the bury authority may call either half.
     assert!(send(
@@ -700,23 +708,30 @@ async fn buy_gold_swaps_motherlode_sol_and_distributes() {
         .await
         .unwrap();
 
+    // 2 SOL left the motherlode: 10% went to the rush SOL vault, 90% was swapped.
+    let (rush, swapped) = SolMotherlode::split_payout(2 * LAMPORTS_PER_SOL).unwrap();
+    assert_eq!(
+        (rush, swapped),
+        (LAMPORTS_PER_SOL / 5, 9 * LAMPORTS_PER_SOL / 5)
+    );
     let m: SolMotherlode = get(&mut ctx, sol_motherlode_pda().0).await;
     assert_eq!(m.amount, 3 * LAMPORTS_PER_SOL);
     assert_eq!(
         lamports(&mut ctx, sol_motherlode_pda().0).await,
         motherlode_lamports_before - 2 * LAMPORTS_PER_SOL
     );
-    assert_eq!(token_balance(&mut ctx, gold_vault_sol_address()).await, 0);
     assert_eq!(
-        token_balance(&mut ctx, pool_sol).await,
-        2 * LAMPORTS_PER_SOL
+        lamports(&mut ctx, RUSH_SOL_VAULT).await,
+        rush_lamports_before + rush
     );
+    assert_eq!(token_balance(&mut ctx, gold_vault_sol_address()).await, 0);
+    assert_eq!(token_balance(&mut ctx, pool_sol).await, swapped);
     assert_eq!(
         token_balance(&mut ctx, gold_vault_xaut_address()).await,
         XAUT
     );
     let vault: GoldVault = get(&mut ctx, gold_vault).await;
-    assert_eq!(vault.total_sol_swapped, 2 * LAMPORTS_PER_SOL);
+    assert_eq!(vault.total_sol_swapped, swapped);
     assert_eq!(vault.total_xaut_distributed, XAUT);
 
     send(&mut ctx, &[&a], &[ix_claim_gold(&a)]).await.unwrap();
